@@ -55,14 +55,34 @@ async function parsePackages(packages?: Package[]): Promise<Files> {
 async function parseClasses(classes?: Class[]): Promise<Files> {
   return (
     classes?.reduce(
-      (previous, { '@_filename': path, '@_line-rate': lineRate }: Class) => ({
-        ...previous,
-        [createHash(`${path}`)]: {
-          relative: path,
-          absolute: `${path}`,
-          coverage: roundPercentage(parseFloat(lineRate) * 100)
+      (
+        previous,
+        {
+          '@_filename': path,
+          '@_line-rate': lineRate,
+          lines: classLines
+        }: Class
+      ) => {
+        const lineData = classLines?.line;
+        const lineArray = Array.isArray(lineData)
+          ? lineData
+          : lineData
+            ? [lineData]
+            : [];
+        const lines: { [lineNum: number]: boolean } = {};
+        for (const l of lineArray) {
+          lines[parseInt(l['@_number'])] = parseInt(l['@_hits']) > 0;
         }
-      }),
+        return {
+          ...previous,
+          [createHash(`${path}`)]: {
+            relative: path,
+            absolute: `${path}`,
+            coverage: roundPercentage(parseFloat(lineRate) * 100),
+            lines
+          }
+        };
+      },
       {}
     ) || {}
   );

@@ -1,7 +1,9 @@
 import * as core from '@actions/core';
 import {
+  buildCoverageLineData,
   checkFileExists,
   colorizePercentageByThreshold,
+  computeRegression,
   downloadArtifacts,
   getInputs,
   parseCoverage,
@@ -10,8 +12,10 @@ import {
 } from './utils';
 import {
   Coverage,
+  CoverageLineData,
   HandlebarContext,
-  HandlebarContextCoverage
+  HandlebarContextCoverage,
+  RegressionResult
 } from './interfaces';
 import { writeFile } from 'fs/promises';
 import path from 'path';
@@ -64,10 +68,36 @@ export async function run(): Promise<void> {
           return;
         }
 
+        // Load base line-coverage data for regression analysis (if available)
+        let regression: RegressionResult | null = null;
+        if (artifactPath !== null) {
+          const linesFilename = path.join(
+            artifactPath,
+            `${filename}.lines.json`
+          );
+          if (await checkFileExists(linesFilename)) {
+            try {
+              const raw = await readFile(linesFilename, 'utf8');
+              const baseLineData: CoverageLineData = JSON.parse(raw);
+              core.info(
+                `Computing regression against base line coverage data...`
+              );
+              regression = await computeRegression(baseLineData, headCoverage);
+              core.info(
+                `Regression: ${regression.lostLines} of ${regression.previouslyCoveredLines} previously-covered lines lost (${regression.percentage}%)`
+              );
+            } catch (err: any) {
+              core.warning(
+                `Unable to compute regression from line data: ${err.message}`
+              );
+            }
+          }
+        }
+
         core.info(
           `Generating markdown between ${headCoverage.basePath} and ${baseCoverage.basePath}...`
         );
-        await generateMarkdown(headCoverage, baseCoverage);
+        await generateMarkdown(headCoverage, baseCoverage, regression);
         core.info(`Complete`);
         break;
       }
@@ -76,18 +106,39 @@ export async function run(): Promise<void> {
       case 'workflow_dispatch':
         {
           const { GITHUB_REF_NAME = '', GITHUB_WORKFLOW = '' } = process.env;
-          core.info(`Uploading ${filename}...`);
-          await uploadArtifacts([filename], GITHUB_REF_NAME);
-          core.debug(
-            `GITHUB_REF_NAME: ${GITHUB_REF_NAME}, filename: ${filename}`
-          );
-          core.info(`Complete`);
+          core.info(`Workflow Name: ${GITHUB_WORKFLOW}`);
 
           core.info(`Parsing coverage file: ${filename}...`);
           const headCoverage = await parseCoverage(filename);
           core.info(`Complete`);
 
-          core.info(`Workflow Name: ${GITHUB_WORKFLOW}`);
+          // Build content-hash line data and include it in the artifact so
+          // that future PR runs can do content-based (not line-number-based)
+          // regression analysis.
+          const filesToUpload = [filename];
+          if (headCoverage !== null) {
+            try {
+              core.info(
+                `Building line coverage data for regression analysis...`
+              );
+              const lineData = await buildCoverageLineData(headCoverage);
+              const linesFilename = `${filename}.lines.json`;
+              await writeFile(linesFilename, JSON.stringify(lineData));
+              filesToUpload.push(linesFilename);
+              core.info(`Line coverage data written to ${linesFilename}`);
+            } catch (err: any) {
+              core.warning(
+                `Unable to build line coverage data: ${err.message}`
+              );
+            }
+          }
+
+          core.info(`Uploading ${filename}...`);
+          await uploadArtifacts(filesToUpload, GITHUB_REF_NAME);
+          core.debug(
+            `GITHUB_REF_NAME: ${GITHUB_REF_NAME}, filename: ${filename}`
+          );
+          core.info(`Complete`);
 
           if (headCoverage != null) {
             core.info(`Generating markdown from ${headCoverage.basePath}...`);
@@ -106,7 +157,8 @@ export async function run(): Promise<void> {
 
 export async function generateMarkdown(
   headCoverage: Coverage,
-  baseCoverage: Coverage | null = null
+  baseCoverage: Coverage | null = null,
+  regression: RegressionResult | null = null
 ): Promise<void> {
   const inputs = getInputs();
   const {
@@ -254,7 +306,8 @@ export async function generateMarkdown(
             a.package < b.package ? -1 : a.package > b.package ? 1 : 0
           ),
     overall_coverage: addOverallRow(headCoverage, baseCoverage),
-    inputs
+    inputs,
+    ...(regression !== null && { regression })
   };
 
   context.show_package_coverage = !skipPackageCoverage;

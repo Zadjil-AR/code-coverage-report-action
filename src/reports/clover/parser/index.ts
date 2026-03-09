@@ -65,15 +65,23 @@ async function parseFiles(files: File[] | undefined | null): Promise<Files> {
     files?.reduce(
       (
         previous,
-        { '@_name': name, metrics: fileMetrics, '@_path': path }: File
-      ) => ({
-        ...previous,
-        [createHash(path ?? name)]: {
-          relative: path ?? name,
-          absolute: path ?? name,
-          coverage: processCoverageMetrics(fileMetrics)
+        { '@_name': name, metrics: fileMetrics, '@_path': path, line }: File
+      ) => {
+        const lineArray = Array.isArray(line) ? line : line ? [line] : [];
+        const lines: { [lineNum: number]: boolean } = {};
+        for (const l of lineArray) {
+          lines[parseInt(l['@_num'])] = parseInt(l['@_count']) > 0;
         }
-      }),
+        return {
+          ...previous,
+          [createHash(path ?? name)]: {
+            relative: path ?? name,
+            absolute: path ?? name,
+            coverage: processCoverageMetrics(fileMetrics),
+            lines
+          }
+        };
+      },
       {}
     ) ?? {}
   );

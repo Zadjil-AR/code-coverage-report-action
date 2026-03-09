@@ -9,6 +9,29 @@ export interface CoverageFile {
   relative: string;
   absolute: string;
   coverage: number;
+  lines?: { [lineNum: number]: boolean };
+}
+
+export interface CoverageLineEntry {
+  lineNum: number;
+  hash: string;
+  covered: boolean;
+}
+
+export interface CoverageLineData {
+  [relativeFilePath: string]: CoverageLineEntry[];
+}
+
+export interface RegressedBlock {
+  file: string;
+  lostLines: number;
+}
+
+export interface RegressionResult {
+  previouslyCoveredLines: number;
+  lostLines: number;
+  percentage: number;
+  blocks: RegressedBlock[];
 }
 
 export interface Inputs {
@@ -50,4 +73,5 @@ export interface HandlebarContext {
   coverage: HandlebarContextCoverage[];
   overall_coverage: HandlebarContextCoverage;
   inputs: Inputs;
+  regression?: RegressionResult;
 }

@@ -16,3 +16,17 @@
 {{/with}}
 
 _Minimum allowed coverage is_ `{{minimum_allowed_coverage}}`_, this run produced_ `{{new_coverage}}`
+{{#if regression}}
+
+### Lost Coverage
+
+`{{regression.percentage}}%` of previously-covered lines are no longer covered ({{regression.lostLines}} of {{regression.previouslyCoveredLines}} lines).
+
+{{#if regression.blocks}}
+| File | Lines Lost |
+| ---- | ---------- |
+{{#each regression.blocks}}
+| {{file}} | {{lostLines}} |
+{{/each}}
+{{/if}}
+{{/if}}

@@ -10,7 +10,14 @@ import { Clover, parse as parseClover } from './reports/clover';
 import { Cobertura, parse as parseCobertura } from './reports/cobertura';
 import path from 'path';
 
-import { Coverage, Inputs } from './interfaces';
+import {
+  Coverage,
+  CoverageLineData,
+  CoverageLineEntry,
+  Inputs,
+  RegressedBlock,
+  RegressionResult
+} from './interfaces';
 import crypto from 'crypto';
 import AdmZip from 'adm-zip';
 
@@ -53,8 +60,11 @@ export async function parseXML<T>(filename: string): Promise<T | null> {
         'coverage.project.file',
         'coverage.project.package',
         'coverage.project.package.file',
+        'coverage.project.file.line',
+        'coverage.project.package.file.line',
         'coverage.packages.package',
         'coverage.packages.package.classes.class',
+        'coverage.packages.package.classes.class.lines.line',
         'coverage.sources.source'
       ]);
     }
@@ -427,6 +437,148 @@ function instanceOfClover(object: any): object is Clover {
 export function formatArtifactName(name: string): string {
   const { artifactName } = getInputs();
   return `${artifactName}`.replace('%name%', name).replace(/\//g, '-');
+}
+
+/**
+ * Build coverage line data from a Coverage object by reading source files.
+ * Each covered/uncovered line is represented by a SHA-256 hash of its trimmed
+ * content so the comparison is not sensitive to line-number shifts.
+ *
+ * @param {Coverage} coverage
+ * @returns {Promise<CoverageLineData>}
+ */
+export async function buildCoverageLineData(
+  coverage: Coverage
+): Promise<CoverageLineData> {
+  const result: CoverageLineData = {};
+
+  for (const file of Object.values(coverage.files)) {
+    if (!file.lines || Object.keys(file.lines).length === 0) {
+      continue;
+    }
+
+    let sourceLines: string[];
+    try {
+      const content = await readFile(file.absolute, 'utf8');
+      sourceLines = content.split('\n');
+    } catch {
+      core.debug(
+        `Unable to read source file ${file.absolute} for line hashing`
+      );
+      continue;
+    }
+
+    const entries: CoverageLineEntry[] = [];
+    for (const [lineNumStr, covered] of Object.entries(file.lines)) {
+      const lineNum = parseInt(lineNumStr);
+      const lineContent = sourceLines[lineNum - 1]; // lines are 1-indexed
+      if (lineContent === undefined) {
+        continue;
+      }
+      entries.push({
+        lineNum,
+        hash: createHash(lineContent.trim()),
+        covered
+      });
+    }
+
+    if (entries.length > 0) {
+      result[file.relative] = entries;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Compute regression: find lines that were covered in the base but are no
+ * longer covered in the head.  Matching is done by content hash so that
+ * lines shifted by additions / deletions elsewhere in the file are still
+ * recognised as the same code.
+ *
+ * @param {CoverageLineData} baseLineData  - content-hash line data from base artifact
+ * @param {Coverage}         headCoverage  - parsed head coverage (must include `lines`)
+ * @returns {Promise<RegressionResult>}
+ */
+export async function computeRegression(
+  baseLineData: CoverageLineData,
+  headCoverage: Coverage
+): Promise<RegressionResult> {
+  let previouslyCoveredLines = 0;
+  let lostLines = 0;
+  const blocks: RegressedBlock[] = [];
+
+  // Build a map from relative path → multiset of covered content hashes in HEAD
+  const headCoveredHashCounts = new Map<string, Map<string, number>>();
+
+  for (const file of Object.values(headCoverage.files)) {
+    if (!file.lines || Object.keys(file.lines).length === 0) {
+      continue;
+    }
+
+    let sourceLines: string[];
+    try {
+      const content = await readFile(file.absolute, 'utf8');
+      sourceLines = content.split('\n');
+    } catch {
+      core.debug(
+        `Unable to read head source file ${file.absolute} for regression check`
+      );
+      continue;
+    }
+
+    const counts = new Map<string, number>();
+    for (const [lineNumStr, covered] of Object.entries(file.lines)) {
+      if (!covered) {
+        continue;
+      }
+      const lineNum = parseInt(lineNumStr);
+      const lineContent = sourceLines[lineNum - 1];
+      if (lineContent === undefined) {
+        continue;
+      }
+      const hash = createHash(lineContent.trim());
+      counts.set(hash, (counts.get(hash) ?? 0) + 1);
+    }
+
+    headCoveredHashCounts.set(file.relative, counts);
+  }
+
+  // Compare base covered lines against head covered hashes
+  for (const [relPath, baseEntries] of Object.entries(baseLineData)) {
+    const baseCovered = baseEntries.filter((e) => e.covered);
+    previouslyCoveredLines += baseCovered.length;
+
+    const headCounts =
+      headCoveredHashCounts.get(relPath) ?? new Map<string, number>();
+    // Work on a mutable copy so we can decrement as we match
+    const workingCounts = new Map(headCounts);
+
+    let fileLostLines = 0;
+    for (const entry of baseCovered) {
+      const remaining = workingCounts.get(entry.hash) ?? 0;
+      if (remaining > 0) {
+        workingCounts.set(entry.hash, remaining - 1);
+      } else {
+        fileLostLines++;
+      }
+    }
+
+    if (fileLostLines > 0) {
+      lostLines += fileLostLines;
+      blocks.push({ file: relPath, lostLines: fileLostLines });
+    }
+  }
+
+  // When there are no previously covered lines, there is nothing to regress.
+  // Return 0% rather than null/undefined so that callers can always treat
+  // the result as a number without extra null-checks.
+  const percentage =
+    previouslyCoveredLines > 0
+      ? roundPercentage((lostLines / previouslyCoveredLines) * 100)
+      : 0;
+
+  return { previouslyCoveredLines, lostLines, percentage, blocks };
 }
 
 /**
