@@ -26,24 +26,28 @@ A new boolean input `enable_line_loss_report` (default: `false`) is added to `ac
 ```yaml
 enable_line_loss_report:
   description: >
-    When true, calculates which previously covered lines are no longer covered
-    in the PR, adds the loss columns to the coverage table, and stores all lost
-    ranges in the artifact. Requires base coverage artifact to be present.
-    Has no effect on push/schedule events (artifact upload only).
+    When true, computes and stores covered-line ranges in every uploaded artifact
+    (push/schedule events) and, on pull-request events with a base artifact present,
+    also calculates which previously covered lines are no longer covered and adds the
+    loss columns to the coverage table.
+    When false (default), no line-range data is stored and the action behaves exactly
+    as it did before this feature was introduced.
   default: 'false'
 ```
 
 ### 2b. Behaviour When Flag Is `false` (Default)
 
-- No `git diff` is executed.
-- No `coveredRanges` are computed or stored in the artifact.
+- No `coveredRanges` are computed or stored in the artifact on any event.
+- No `git diff` is executed on pull-request events.
 - No line loss columns appear in the markdown output.
-- The action behaves exactly as it does today.
+- The uploaded artifact is identical in structure to artifacts produced by previous versions of the action.
+- The action behaves exactly as it does today on every event type.
 
 ### 2c. Behaviour When Flag Is `true`
 
-- `coveredRanges` are computed from the coverage XML and included in every uploaded artifact (even on `push`/`schedule` events), so the data is ready for future PR comparisons.
-- On pull-request events with a base artifact present, the full line loss analysis runs and the results are surfaced in the markdown and artifact.
+- On **all** event types (`push`, `schedule`, `pull_request`, …): `coveredRanges` are computed from the coverage XML and stored in the uploaded artifact, making the data available for future PR comparisons.
+- On **pull-request events** with a base artifact that also contains `coveredRanges`: the full line loss analysis runs and the results are surfaced in the markdown table and artifact.
+- If a base artifact is present but was produced without the flag (i.e., it has no `coveredRanges`), the line loss analysis is skipped gracefully and the output degrades to the standard coverage table — exactly as before.
 
 ### 2d. Flag Check Location
 
@@ -324,13 +328,14 @@ Add the `enable_line_loss_report` input described in §2a.
 
 | Item | Decision |
 |------|----------|
-| Feature flag | Defaults to `false`; all line loss logic is completely skipped when `false`. |
+| Feature flag | Defaults to `false`; when `false` no line-range data is computed or stored and the artifact format is unchanged from previous versions of the action. |
+| Backward compatibility | A PR run with the flag `true` against a base artifact that was produced with the flag `false` (or by an older version of the action) will find no `coveredRanges` in the base artifact and will skip the line loss analysis, falling back to the standard table. |
 | Git availability | `git` binary is always available in GitHub Actions runners. |
 | SHA access | `github.sha` (PR head) and `github.event.pull_request.base.sha` are available in the action context. |
 | Coverage format | Only Clover and Cobertura are supported (matching existing parsers). |
 | Line granularity | Line-level data must be present in the XML; files that only have percentage metrics are skipped. |
 | Performance | `git diff` is called once per file in the base coverage; parallelism is not required at MVP. |
-| Artifact size | When the flag is `true`, `coveredRanges` is always included in the uploaded artifact (on every event type). `lostCoverageRanges` is always written on PR events too — as an empty object when there are no lost lines, or populated with ranges when losses exist. |
+| Artifact size | When the flag is `true`, `coveredRanges` is included in every uploaded artifact. On PR events, `lostCoverageRanges` is also written — as an empty object when there are no lost lines, or populated with ranges when losses exist. When the flag is `false`, neither field is present. |
 
 ---
 
