@@ -8,7 +8,9 @@ import {
   colorizePercentageByThreshold,
   getInputs,
   parseXML,
-  parseCoverage
+  parseCoverage,
+  buildCoveredRanges,
+  computeLostCoverage
 } from '../src/utils'
 import {
   expect,
@@ -17,7 +19,8 @@ import {
   afterEach,
   jest,
   beforeAll,
-  afterAll
+  afterAll,
+  describe
 } from '@jest/globals'
 import {loadJSONFixture} from './utils'
 
@@ -149,6 +152,7 @@ test('getInputs', () => {
     retention: undefined,
     skipPackageCoverage: false,
     onlyListChangedFiles: false,
+    enableLineLossReport: false,
     //This is a cheat
     withBaseCoverageTemplate: f.withBaseCoverageTemplate,
     withoutBaseCoverageTemplate: f.withoutBaseCoverageTemplate
@@ -204,4 +208,121 @@ test('parse many sources cobertura file', async () => {
     __dirname + '/fixtures/cobertura-many-sources.xml'
   )
   expect(ret).toMatchSnapshot()
+})
+
+describe('buildCoveredRanges', () => {
+  test('returns empty array for empty input', () => {
+    expect(buildCoveredRanges([])).toEqual([])
+  })
+
+  test('handles a single line', () => {
+    expect(buildCoveredRanges([5])).toEqual([[5, 5]])
+  })
+
+  test('merges contiguous lines into one range', () => {
+    expect(buildCoveredRanges([1, 2, 3, 4, 5])).toEqual([[1, 5]])
+  })
+
+  test('handles non-contiguous lines as separate ranges', () => {
+    expect(buildCoveredRanges([1, 2, 5, 6, 10])).toEqual([
+      [1, 2],
+      [5, 6],
+      [10, 10]
+    ])
+  })
+
+  test('sorts unsorted input before merging', () => {
+    expect(buildCoveredRanges([10, 1, 5, 6, 2])).toEqual([
+      [1, 2],
+      [5, 6],
+      [10, 10]
+    ])
+  })
+
+  test('treats adjacent lines as contiguous', () => {
+    expect(buildCoveredRanges([3, 4])).toEqual([[3, 4]])
+  })
+})
+
+describe('computeLostCoverage', () => {
+  test('returns zero loss when all base lines are deleted', () => {
+    const baseCoveredRanges = { 'src/foo.ts': [[1, 5]] as [number, number][] }
+    const newCoveredRanges = {}
+    // One hunk that deletes lines 1-5
+    const translationMaps = new Map([
+      [
+        'src/foo.ts',
+        [{ oldStart: 1, oldCount: 5, newStart: 1, newCount: 0 }]
+      ]
+    ])
+    const result = computeLostCoverage(
+      baseCoveredRanges,
+      newCoveredRanges,
+      translationMaps
+    )
+    expect(result.totalLost).toBe(0)
+    expect(result.files).toHaveLength(0)
+  })
+
+  test('reports lines that moved but are no longer covered', () => {
+    const baseCoveredRanges = { 'src/foo.ts': [[1, 3]] as [number, number][] }
+    const newCoveredRanges = { 'src/foo.ts': [] as [number, number][] }
+    const translationMaps = new Map([['src/foo.ts', []]])
+
+    const result = computeLostCoverage(
+      baseCoveredRanges,
+      newCoveredRanges,
+      translationMaps
+    )
+    expect(result.totalLost).toBe(3)
+    expect(result.totalPreviouslyCovered).toBe(3)
+    expect(result.overallLossPercent).toBe(100)
+    expect(result.files).toHaveLength(1)
+    expect(result.files[0].fileName).toBe('src/foo.ts')
+    expect(result.files[0].lostRanges).toEqual([[1, 3]])
+  })
+
+  test('does not count covered-in-new lines as lost', () => {
+    const baseCoveredRanges = { 'src/foo.ts': [[1, 5]] as [number, number][] }
+    const newCoveredRanges = { 'src/foo.ts': [[1, 5]] as [number, number][] }
+    const translationMaps = new Map([['src/foo.ts', []]])
+
+    const result = computeLostCoverage(
+      baseCoveredRanges,
+      newCoveredRanges,
+      translationMaps
+    )
+    expect(result.totalLost).toBe(0)
+    expect(result.overallLossPercent).toBe(0)
+  })
+
+  test('limits first5Ranges to 5 entries across files', () => {
+    const baseCoveredRanges = {
+      'src/a.ts': [
+        [1, 1],
+        [3, 3],
+        [5, 5]
+      ] as [number, number][],
+      'src/b.ts': [
+        [10, 10],
+        [20, 20],
+        [30, 30]
+      ] as [number, number][]
+    }
+    const newCoveredRanges = {
+      'src/a.ts': [] as [number, number][],
+      'src/b.ts': [] as [number, number][]
+    }
+    const translationMaps = new Map([
+      ['src/a.ts', []],
+      ['src/b.ts', []]
+    ])
+
+    const result = computeLostCoverage(
+      baseCoveredRanges,
+      newCoveredRanges,
+      translationMaps
+    )
+    expect(result.first5Ranges).toHaveLength(5)
+  })
 })

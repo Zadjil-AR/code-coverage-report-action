@@ -1,8 +1,28 @@
+export type LineRange = [number, number];
+export type CoveredRanges = Record<string, LineRange[]>;
+
+export interface LostCoverageFile {
+  fileName: string;
+  previouslyCovered: number;
+  lostLines: number;
+  lossPercent: number;
+  lostRanges: LineRange[];
+}
+
+export interface LostCoverageSummary {
+  files: LostCoverageFile[];
+  totalPreviouslyCovered: number;
+  totalLost: number;
+  overallLossPercent: number;
+  first5Ranges: { file: string; range: LineRange }[];
+}
+
 export interface Coverage {
   files: Files;
   coverage: number;
   timestamp: number;
   basePath: string;
+  coveredRanges?: CoveredRanges;
 }
 
 export interface CoverageFile {
@@ -29,6 +49,7 @@ export interface Inputs {
   negativeDifferenceThreshold: number;
   onlyListChangedFiles: boolean;
   skipPackageCoverage: boolean;
+  enableLineLossReport: boolean;
 }
 
 export interface Files {
@@ -40,6 +61,9 @@ export interface HandlebarContextCoverage {
   base_coverage: string;
   new_coverage?: string;
   difference?: string;
+  previously_covered?: number;
+  lost_lines?: number;
+  loss_percent?: string;
 }
 
 export interface HandlebarContext {
@@ -50,4 +74,5 @@ export interface HandlebarContext {
   coverage: HandlebarContextCoverage[];
   overall_coverage: HandlebarContextCoverage;
   inputs: Inputs;
+  lostCoverage?: LostCoverageSummary;
 }

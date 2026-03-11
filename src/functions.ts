@@ -6,17 +6,20 @@ import {
   getInputs,
   parseCoverage,
   roundPercentage,
-  uploadArtifacts
+  uploadArtifacts,
+  computeLostCoverage
 } from './utils';
 import {
   Coverage,
   HandlebarContext,
-  HandlebarContextCoverage
+  HandlebarContextCoverage,
+  LostCoverageSummary
 } from './interfaces';
 import { writeFile } from 'fs/promises';
 import path from 'path';
 import Handlebars from 'handlebars';
 import { readFile } from 'node:fs/promises';
+import { buildLineTranslationMap } from './diff';
 
 export async function run(): Promise<void> {
   try {
@@ -29,10 +32,12 @@ export async function run(): Promise<void> {
 
     core.debug(`filename: ${filename}`);
 
+    const inputs = getInputs();
+
     switch (process.env.GITHUB_EVENT_NAME) {
       case 'pull_request':
       case 'pull_request_target': {
-        const { GITHUB_BASE_REF = '' } = process.env;
+        const { GITHUB_BASE_REF = '', GITHUB_HEAD_REF = '' } = process.env;
         core.debug(`GITHUB_BASE_REF: ${GITHUB_BASE_REF}`);
         const artifactPath = await downloadArtifacts(GITHUB_BASE_REF);
         core.debug(`artifactPath: ${artifactPath}`);
@@ -64,11 +69,63 @@ export async function run(): Promise<void> {
           return;
         }
 
+        // Compute line-level lost coverage when the flag is enabled and both
+        // artifacts contain covered-range data.
+        let lostCoverage: LostCoverageSummary | undefined;
+        if (
+          inputs.enableLineLossReport &&
+          baseCoverage.coveredRanges &&
+          headCoverage.coveredRanges
+        ) {
+          core.info(`Computing line-level lost coverage...`);
+          const baseRef = `origin/${GITHUB_BASE_REF}`;
+          const headRef = 'HEAD';
+          const translationMaps = new Map(
+            Object.keys(baseCoverage.coveredRanges).map((filePath) => [
+              filePath,
+              buildLineTranslationMap(baseRef, headRef, filePath)
+            ])
+          );
+          lostCoverage = computeLostCoverage(
+            baseCoverage.coveredRanges,
+            headCoverage.coveredRanges,
+            translationMaps
+          );
+          core.info(`Complete`);
+        }
+
         core.info(
           `Generating markdown between ${headCoverage.basePath} and ${baseCoverage.basePath}...`
         );
-        await generateMarkdown(headCoverage, baseCoverage);
+        await generateMarkdown(headCoverage, baseCoverage, lostCoverage);
         core.info(`Complete`);
+
+        // Upload head coverage artifact (includes line-range and lost-range
+        // sidecars when the flag is enabled).
+        if (inputs.enableLineLossReport && headCoverage.coveredRanges) {
+          const rangesFile = 'coverage-line-ranges.json';
+          await writeFile(
+            rangesFile,
+            JSON.stringify(headCoverage.coveredRanges)
+          );
+          const filesToUpload: string[] = [filename, rangesFile];
+
+          if (lostCoverage && lostCoverage.totalLost > 0) {
+            const lostRangesData: Record<string, [number, number][]> = {};
+            for (const lf of lostCoverage.files) {
+              lostRangesData[lf.fileName] = lf.lostRanges;
+            }
+            const lostRangesFile = 'coverage-lost-ranges.json';
+            await writeFile(lostRangesFile, JSON.stringify(lostRangesData));
+            filesToUpload.push(lostRangesFile);
+          }
+
+          await uploadArtifacts(
+            filesToUpload,
+            GITHUB_HEAD_REF || GITHUB_BASE_REF
+          );
+        }
+
         break;
       }
       case 'push':
@@ -76,18 +133,29 @@ export async function run(): Promise<void> {
       case 'workflow_dispatch':
         {
           const { GITHUB_REF_NAME = '', GITHUB_WORKFLOW = '' } = process.env;
-          core.info(`Uploading ${filename}...`);
-          await uploadArtifacts([filename], GITHUB_REF_NAME);
-          core.debug(
-            `GITHUB_REF_NAME: ${GITHUB_REF_NAME}, filename: ${filename}`
-          );
-          core.info(`Complete`);
 
           core.info(`Parsing coverage file: ${filename}...`);
           const headCoverage = await parseCoverage(filename);
           core.info(`Complete`);
 
           core.info(`Workflow Name: ${GITHUB_WORKFLOW}`);
+
+          const filesToUpload: string[] = [filename];
+          if (inputs.enableLineLossReport && headCoverage?.coveredRanges) {
+            const rangesFile = 'coverage-line-ranges.json';
+            await writeFile(
+              rangesFile,
+              JSON.stringify(headCoverage.coveredRanges)
+            );
+            filesToUpload.push(rangesFile);
+          }
+
+          core.info(`Uploading ${filename}...`);
+          await uploadArtifacts(filesToUpload, GITHUB_REF_NAME);
+          core.debug(
+            `GITHUB_REF_NAME: ${GITHUB_REF_NAME}, filename: ${filename}`
+          );
+          core.info(`Complete`);
 
           if (headCoverage != null) {
             core.info(`Generating markdown from ${headCoverage.basePath}...`);
@@ -106,7 +174,8 @@ export async function run(): Promise<void> {
 
 export async function generateMarkdown(
   headCoverage: Coverage,
-  baseCoverage: Coverage | null = null
+  baseCoverage: Coverage | null = null,
+  lostCoverage: LostCoverageSummary | undefined = undefined
 ): Promise<void> {
   const inputs = getInputs();
   const {
@@ -204,6 +273,10 @@ export async function generateMarkdown(
             return true;
           })
           .map(([hash, file]) => {
+            const lostFile = lostCoverage?.files.find(
+              (lf) => lf.fileName === file.relative
+            );
+
             if (baseCoverage === null) {
               return {
                 package: file.relative,
@@ -247,14 +320,22 @@ export async function generateMarkdown(
                 fileCoverageWarningMax,
                 fileCoverageErrorMin
               )}`,
-              difference: colorizePercentageByThreshold(differencePercentage)
+              difference: colorizePercentageByThreshold(differencePercentage),
+              ...(lostCoverage !== undefined
+                ? {
+                    previously_covered: lostFile?.previouslyCovered ?? 0,
+                    lost_lines: lostFile?.lostLines ?? 0,
+                    loss_percent: `${lostFile?.lossPercent ?? 0}%`
+                  }
+                : {})
             };
           })
           .sort((a, b) =>
             a.package < b.package ? -1 : a.package > b.package ? 1 : 0
           ),
-    overall_coverage: addOverallRow(headCoverage, baseCoverage),
-    inputs
+    overall_coverage: addOverallRow(headCoverage, baseCoverage, lostCoverage),
+    inputs,
+    ...(lostCoverage !== undefined ? { lostCoverage } : {})
   };
 
   context.show_package_coverage = !skipPackageCoverage;
@@ -284,7 +365,8 @@ export async function generateMarkdown(
  */
 export function addOverallRow(
   headCoverage: Coverage,
-  baseCoverage: Coverage | null = null
+  baseCoverage: Coverage | null = null,
+  lostCoverage: LostCoverageSummary | undefined = undefined
 ): HandlebarContextCoverage {
   const { overallCoverageFailThreshold } = getInputs();
 
@@ -315,6 +397,13 @@ export function addOverallRow(
       0,
       overallCoverageFailThreshold
     )}`,
-    difference: `${colorizePercentageByThreshold(overallDifferencePercentage)}`
+    difference: `${colorizePercentageByThreshold(overallDifferencePercentage)}`,
+    ...(lostCoverage !== undefined
+      ? {
+          previously_covered: lostCoverage.totalPreviouslyCovered,
+          lost_lines: lostCoverage.totalLost,
+          loss_percent: `${lostCoverage.overallLossPercent}%`
+        }
+      : {})
   };
 }
