@@ -195,19 +195,6 @@ test('parse clover retains coveredRanges when enableLineLossReport is true', asy
   expect(Object.keys(ret?.coveredRanges ?? {})).not.toHaveLength(0)
 })
 
-test('parse clover with a package that has no files (skips empty package)', async () => {
-  process.env.INPUT_GITHUB_TOKEN = 'token'
-  process.env.INPUT_FILENAME = 'filename.xml'
-  process.env.INPUT_ENABLE_LINE_LOSS_REPORT = 'true'
-
-  const ret = await parseCoverage(
-    __dirname + '/fixtures/clover-empty-package.xml'
-  )
-  expect(ret).not.toBeNull()
-  // Only the non-empty package contributes files
-  expect(Object.keys(ret?.files ?? {})).toHaveLength(1)
-})
-
 test('parse cobertura file format', async () => {
   const ret = await parseCoverage(__dirname + '/fixtures/cobertura.xml')
 

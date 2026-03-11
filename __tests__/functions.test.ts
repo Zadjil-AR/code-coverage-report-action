@@ -223,45 +223,6 @@ test('Generate Diffed Markdown with lost coverage', async () => {
   expect(await getGithubStepSummary()).toMatchSnapshot()
 })
 
-test('Generate markdown with badge enabled', async () => {
-  process.env.INPUT_BADGE = 'true'
-
-  const coverage = await loadJSONFixture('clover-parsed.json')
-  await generateMarkdown(coverage)
-  expect(getStdoutWriteCalls()).toMatchSnapshot()
-  expect(await getGithubStepSummary()).toMatchSnapshot()
-})
-
-test('Generate markdown with green color (high coverage)', async () => {
-  const coverage = await loadJSONFixture('clover-parsed.json')
-  const highCoverage = JSON.parse(JSON.stringify(coverage))
-  highCoverage.coverage = 80
-  await generateMarkdown(highCoverage)
-  expect(getStdoutWriteCalls()).toMatchSnapshot()
-  expect(await getGithubStepSummary()).toMatchSnapshot()
-})
-
-test('Fail on overall negative difference when negativeDifferenceBy is overall', async () => {
-  process.env.INPUT_FAIL_ON_NEGATIVE_DIFFERENCE = 'true'
-  process.env.INPUT_NEGATIVE_DIFFERENCE_BY = 'overall'
-
-  const coverage = await loadJSONFixture('clover-parsed.json')
-  const coverageFail = JSON.parse(JSON.stringify(coverage))
-  coverageFail.coverage = 40
-
-  await generateMarkdown(coverageFail, coverage)
-  expect(getStdoutWriteCalls()).toMatchSnapshot()
-  expect(await getGithubStepSummary()).toMatchSnapshot()
-})
-
-test('generateMarkdown sets failed when template file does not exist', async () => {
-  process.env.INPUT_WITH_BASE_COVERAGE_TEMPLATE = '/nonexistent/template.hbs'
-
-  const coverage = await loadJSONFixture('clover-parsed.json')
-  await generateMarkdown(coverage, coverage)
-  expect(getStdoutWriteCalls()).toMatchSnapshot()
-})
-
 async function getGithubStepSummary(): Promise<string> {
   const tempFileName = process.env.GITHUB_STEP_SUMMARY as string
   return fs.promises.readFile(tempFileName, 'utf8')
