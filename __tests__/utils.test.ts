@@ -159,11 +159,40 @@ test('getInputs', () => {
   })
 })
 
+test('getInputs parses artifact_download_workflow_names into an array', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_DOWNLOAD_WORKFLOW_NAMES = 'workflow1, workflow2'
+
+  const f = getInputs()
+  expect(f.artifactDownloadWorkflowNames).toEqual(['workflow1', 'workflow2'])
+})
+
+test('getInputs throws when artifact_name does not include %name%', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-report'
+
+  expect(() => getInputs()).toThrow('artifact_name is missing %name% variable')
+})
+
 test('parse clover into file format', async () => {
   const ret = await parseCoverage(__dirname + '/fixtures/clover.xml')
 
   const loadedFixture = await loadJSONFixture('clover-parsed.json')
   expect(loadedFixture).toEqual(ret)
+})
+
+test('parse clover retains coveredRanges when enableLineLossReport is true', async () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ENABLE_LINE_LOSS_REPORT = 'true'
+
+  const ret = await parseCoverage(__dirname + '/fixtures/clover.xml')
+  expect(ret).not.toBeNull()
+  // coveredRanges should be present and populated when the flag is on
+  expect(ret?.coveredRanges).toBeDefined()
+  expect(Object.keys(ret?.coveredRanges ?? {})).not.toHaveLength(0)
 })
 
 test('parse cobertura file format', async () => {

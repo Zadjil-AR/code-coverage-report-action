@@ -1,5 +1,10 @@
-import { parseHunks, translateLine, DiffHunk } from '../src/diff';
-import { expect, test, describe } from '@jest/globals';
+import {
+  parseHunks,
+  translateLine,
+  buildLineTranslationMap,
+  DiffHunk
+} from '../src/diff';
+import { expect, test, describe, jest } from '@jest/globals';
 
 describe('parseHunks', () => {
   test('returns empty array for empty diff', () => {
@@ -119,5 +124,107 @@ describe('translateLine', () => {
     expect(translateLine(7, hunks)).toBe('DELETED');
     // Line 8 (first after deleted range) → offset = 1 - 3 = -2
     expect(translateLine(8, hunks)).toBe(6);
+  });
+});
+
+describe('buildLineTranslationMap', () => {
+  test('returns parsed hunks from git diff output', () => {
+    const mockDiff = '@@ -5,3 +5,0 @@\n-line1\n-line2\n-line3';
+    const mockExec = jest.fn(() => mockDiff) as any;
+
+    const result = buildLineTranslationMap(
+      'origin/main',
+      'HEAD',
+      'src/foo.ts',
+      mockExec
+    );
+    expect(result).toEqual([
+      { oldStart: 5, oldCount: 3, newStart: 5, newCount: 0 }
+    ]);
+  });
+
+  test('returns empty array when file is unchanged (empty diff output)', () => {
+    const mockExec = jest.fn(() => '') as any;
+
+    const result = buildLineTranslationMap(
+      'origin/main',
+      'HEAD',
+      'src/foo.ts',
+      mockExec
+    );
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty array when git diff throws', () => {
+    const mockExec = jest.fn(() => {
+      throw new Error('git: command not found');
+    }) as any;
+
+    const result = buildLineTranslationMap(
+      'origin/main',
+      'HEAD',
+      'src/foo.ts',
+      mockExec
+    );
+    expect(result).toEqual([]);
+  });
+
+  test('throws on baseRef containing shell metacharacters', () => {
+    expect(() =>
+      buildLineTranslationMap('origin/main; rm -rf /', 'HEAD', 'src/foo.ts')
+    ).toThrow('Invalid git ref');
+  });
+
+  test('throws on headRef containing shell metacharacters', () => {
+    expect(() =>
+      buildLineTranslationMap('origin/main', 'HEAD$(echo bad)', 'src/foo.ts')
+    ).toThrow('Invalid git ref');
+  });
+
+  test('throws on filePath containing a double-quote', () => {
+    expect(() =>
+      buildLineTranslationMap('origin/main', 'HEAD', 'src/foo.ts"; rm -rf /')
+    ).toThrow('Invalid file path');
+  });
+
+  test('throws on filePath containing a dollar sign', () => {
+    expect(() =>
+      buildLineTranslationMap('origin/main', 'HEAD', 'src/$HOME/foo.ts')
+    ).toThrow('Invalid file path');
+  });
+
+  test('throws on filePath containing a backtick', () => {
+    expect(() =>
+      buildLineTranslationMap('origin/main', 'HEAD', 'src/`whoami`.ts')
+    ).toThrow('Invalid file path');
+  });
+
+  test('throws on baseRef containing subshell characters', () => {
+    expect(() =>
+      buildLineTranslationMap('origin/main()', 'HEAD', 'src/foo.ts')
+    ).toThrow('Invalid git ref');
+  });
+
+  test('handles multi-hunk diff output correctly', () => {
+    const mockDiff = [
+      '@@ -1,2 +1,3 @@',
+      ' unchanged',
+      '-removed',
+      '+added1',
+      '+added2',
+      '@@ -10,4 +11,2 @@'
+    ].join('\n');
+    const mockExec = jest.fn(() => mockDiff) as any;
+
+    const result = buildLineTranslationMap(
+      'origin/feature-branch',
+      'HEAD',
+      'src/utils.ts',
+      mockExec
+    );
+    expect(result).toEqual([
+      { oldStart: 1, oldCount: 2, newStart: 1, newCount: 3 },
+      { oldStart: 10, oldCount: 4, newStart: 11, newCount: 2 }
+    ]);
   });
 });

@@ -1,4 +1,5 @@
 import {addOverallRow, generateMarkdown} from '../src/functions'
+import { LostCoverageSummary } from '../src/interfaces'
 import {
   expect,
   test,
@@ -171,6 +172,53 @@ test('Only list changed files', async () => {
   coverageFail.coverage = 49
 
   await generateMarkdown(coverageFail, coverage)
+  expect(getStdoutWriteCalls()).toMatchSnapshot()
+  expect(await getGithubStepSummary()).toMatchSnapshot()
+})
+
+test('add overall row with base coverage and lost coverage', async () => {
+  const coverage = await loadJSONFixture('clover-parsed.json')
+  const lostCoverage: LostCoverageSummary = {
+    files: [],
+    totalPreviouslyCovered: 165,
+    totalLost: 13,
+    overallLossPercent: 7.88,
+    first5Ranges: []
+  }
+  const out = addOverallRow(coverage, coverage, lostCoverage)
+
+  expect(out).toStrictEqual({
+    package: 'Overall Coverage',
+    base_coverage: '🟢 50.51%',
+    new_coverage: '🟢 50.51%',
+    difference: '⚪ 0%',
+    previously_covered: 165,
+    lost_lines: 13,
+    loss_percent: '7.88%'
+  })
+})
+
+test('Generate Diffed Markdown with lost coverage', async () => {
+  process.env.INPUT_ENABLE_LINE_LOSS_REPORT = 'true'
+
+  const coverage = await loadJSONFixture('clover-parsed.json')
+  const lostCoverage: LostCoverageSummary = {
+    files: [
+      {
+        fileName: 'utils.ts',
+        previouslyCovered: 45,
+        lostLines: 3,
+        lossPercent: 6.67,
+        lostRanges: [[18, 20]]
+      }
+    ],
+    totalPreviouslyCovered: 165,
+    totalLost: 13,
+    overallLossPercent: 7.88,
+    first5Ranges: [{ file: 'utils.ts', range: [18, 20] }]
+  }
+
+  await generateMarkdown(coverage, coverage, lostCoverage)
   expect(getStdoutWriteCalls()).toMatchSnapshot()
   expect(await getGithubStepSummary()).toMatchSnapshot()
 })
