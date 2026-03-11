@@ -64,6 +64,16 @@ inputs:
   with_base_coverage_template:
     description: 'Path to custom template with base coverage'
     required: false
+  enable_line_loss_report:
+    description: >
+      When true, computes and stores covered-line ranges in every uploaded
+      artifact (push/schedule events) and, on pull-request events with a base
+      artifact present, also calculates which previously covered lines are no
+      longer covered and adds the loss columns to the coverage table.
+      When false (default), no line-range data is stored and the action
+      behaves exactly as it did before this feature was introduced.
+    required: false
+    default: 'false'
 
 
 outputs:

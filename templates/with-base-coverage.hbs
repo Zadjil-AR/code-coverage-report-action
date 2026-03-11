@@ -4,15 +4,25 @@
 ![Code Coverage]({{{coverage_badge}}})
 
 {{/if}}
-| Package | Base Coverage | New Coverage | Difference |
-| ------- | ------------- | ------------ | ---------- |
+| Package | Base Coverage | New Coverage | Difference |{{#if inputs.enableLineLossReport}} Previously Covered | Lost Lines | Loss % |{{/if}}
+| ------- | ------------- | ------------ | ---------- |{{#if inputs.enableLineLossReport}} ------------------ | ---------- | ------ |{{/if}}
 {{#if show_package_coverage}}
 {{#each coverage}}
-| {{package}} | {{base_coverage}} | {{new_coverage}} | {{difference}} |
+| {{package}} | {{base_coverage}} | {{new_coverage}} | {{difference}} |{{#if ../inputs.enableLineLossReport}} {{previously_covered}} | {{lost_lines}} | {{loss_percent}} |{{/if}}
 {{/each}}
 {{/if}}
 {{#with overall_coverage}}
-| **{{package}}** | **{{base_coverage}}** | **{{new_coverage}}** | **{{difference}}** |
+| **{{package}}** | **{{base_coverage}}** | **{{new_coverage}}** | **{{difference}}** |{{#if ../inputs.enableLineLossReport}} **{{previously_covered}}** | **{{lost_lines}}** | **{{loss_percent}}** |{{/if}}
 {{/with}}
 
 _Minimum allowed coverage is_ `{{minimum_allowed_coverage}}`_, this run produced_ `{{new_coverage}}`
+{{#if lostCoverage.first5Ranges}}
+
+<details>
+<summary>⚠️ First 5 lost-line ranges</summary>
+
+{{#each lostCoverage.first5Ranges}}
+- `{{file}}`: lines {{range.[0]}}–{{range.[1]}}
+{{/each}}
+</details>
+{{/if}}

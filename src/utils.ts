@@ -10,7 +10,15 @@ import { Clover, parse as parseClover } from './reports/clover';
 import { Cobertura, parse as parseCobertura } from './reports/cobertura';
 import path from 'path';
 
-import { Coverage, Inputs } from './interfaces';
+import {
+  Coverage,
+  Inputs,
+  LineRange,
+  CoveredRanges,
+  LostCoverageSummary,
+  LostCoverageFile
+} from './interfaces';
+import { DiffHunk, translateLine } from './diff';
 import crypto from 'crypto';
 import AdmZip from 'adm-zip';
 
@@ -209,6 +217,8 @@ export async function parseCoverage(
 
   const ext = path.extname(filename);
 
+  let coverage: Coverage | null = null;
+
   switch (ext) {
     case '.xml':
       {
@@ -216,10 +226,10 @@ export async function parseCoverage(
 
         if (instanceOfCobertura(xml)) {
           core.info(`Detected a Cobertura File at ${filename}`);
-          return await parseCobertura(xml);
+          coverage = await parseCobertura(xml);
         } else if (instanceOfClover(xml)) {
           core.info(`Detected a Clover File at ${filename}`);
-          return await parseClover(xml);
+          coverage = await parseClover(xml);
         }
       }
       break;
@@ -227,7 +237,127 @@ export async function parseCoverage(
       core.warning(`Unable to parse ${filename}`);
   }
 
-  return null;
+  if (coverage !== null) {
+    const enableLineLossReport =
+      core.getInput('enable_line_loss_report') === 'true';
+    if (!enableLineLossReport) {
+      delete coverage.coveredRanges;
+    }
+  }
+
+  return coverage;
+}
+
+/**
+ * Convert a list of line numbers into a sorted list of [start, end] ranges.
+ * Adjacent or contiguous line numbers are merged into a single range.
+ * @param {number[]} lines
+ * @returns {LineRange[]}
+ */
+export function buildCoveredRanges(lines: number[]): LineRange[] {
+  if (lines.length === 0) return [];
+  const sorted = [...lines].sort((a, b) => a - b);
+  const ranges: LineRange[] = [];
+  let start = sorted[0];
+  let end = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] <= end + 1) {
+      end = sorted[i];
+    } else {
+      ranges.push([start, end]);
+      start = sorted[i];
+      end = sorted[i];
+    }
+  }
+  ranges.push([start, end]);
+  return ranges;
+}
+
+/**
+ * Check whether a line number falls within any of the given ranges.
+ */
+function isLineInRanges(line: number, ranges: LineRange[]): boolean {
+  return ranges.some(([s, e]) => line >= s && line <= e);
+}
+
+/**
+ * Compute lost coverage given base covered ranges, new covered ranges, and
+ * per-file line translation maps (produced by buildLineTranslationMap).
+ *
+ * Lines that were permanently deleted are excluded from loss accounting.
+ */
+export function computeLostCoverage(
+  baseCoveredRanges: CoveredRanges,
+  newCoveredRanges: CoveredRanges,
+  translationMaps: Map<string, DiffHunk[]>
+): LostCoverageSummary {
+  const files: LostCoverageFile[] = [];
+  let totalPreviouslyCovered = 0;
+  let totalLost = 0;
+  const allLostRangeEntries: { file: string; range: LineRange }[] = [];
+
+  for (const [filePath, baseRanges] of Object.entries(baseCoveredRanges)) {
+    const hunks = translationMaps.get(filePath) ?? [];
+    const newRanges = newCoveredRanges[filePath] ?? [];
+
+    // Expand base ranges into individual covered line numbers.
+    const coveredInBase: number[] = [];
+    for (const [start, end] of baseRanges) {
+      for (let line = start; line <= end; line++) {
+        coveredInBase.push(line);
+      }
+    }
+
+    const previouslyCovered = coveredInBase.length;
+    totalPreviouslyCovered += previouslyCovered;
+
+    const lostLineNumbers: number[] = [];
+    for (const oldLine of coveredInBase) {
+      const newLine = translateLine(oldLine, hunks);
+      if (newLine === 'DELETED') {
+        continue; // Permanently deleted — not a regression.
+      }
+      if (!isLineInRanges(newLine, newRanges)) {
+        lostLineNumbers.push(newLine);
+      }
+    }
+
+    const lostLinesCount = lostLineNumbers.length;
+    totalLost += lostLinesCount;
+
+    if (lostLinesCount > 0) {
+      const lostRanges = buildCoveredRanges(lostLineNumbers);
+      const lossPercent =
+        previouslyCovered > 0
+          ? roundPercentage((lostLinesCount / previouslyCovered) * 100)
+          : 0;
+
+      files.push({
+        fileName: filePath,
+        previouslyCovered,
+        lostLines: lostLinesCount,
+        lossPercent,
+        lostRanges
+      });
+
+      for (const range of lostRanges) {
+        allLostRangeEntries.push({ file: filePath, range });
+      }
+    }
+  }
+
+  const overallLossPercent =
+    totalPreviouslyCovered > 0
+      ? roundPercentage((totalLost / totalPreviouslyCovered) * 100)
+      : 0;
+
+  return {
+    files,
+    totalPreviouslyCovered,
+    totalLost,
+    overallLossPercent,
+    first5Ranges: allLostRangeEntries.slice(0, 5)
+  };
 }
 
 export function createHash(data: crypto.BinaryLike): string {
@@ -390,6 +520,9 @@ export function getInputs(): Inputs {
     core.getInput('with_base_coverage_template') ||
     `${__dirname}/../templates/with-base-coverage.hbs`;
 
+  const enableLineLossReport =
+    core.getInput('enable_line_loss_report') === 'true';
+
   return {
     token,
     filename,
@@ -407,7 +540,8 @@ export function getInputs(): Inputs {
     withBaseCoverageTemplate,
     negativeDifferenceThreshold,
     onlyListChangedFiles,
-    skipPackageCoverage
+    skipPackageCoverage,
+    enableLineLossReport
   };
 }
 

@@ -275,6 +275,46 @@ _Minimum allowed coverage is_ \`0%\`_, this run produced_ \`49.83%\`
 "
 `;
 
+exports[`Generate Diffed Markdown with lost coverage 1`] = `
+[
+  "::debug::headCoverage: 50.51\\n",
+  "::debug::baseCoverage: 50.51\\n",
+  "::debug::overallDifferencePercentage: 0\\n",
+  "::debug::negativeDifferenceThreshold: 0\\n",
+  "Writing results to code-coverage-results.md\\n",
+  "\\n",
+  "::set-output name=file::code-coverage-results.md\\n",
+  "\\n",
+  "::set-output name=coverage::50.51\\n",
+  "Writing job summary\\n",
+]
+`;
+
+exports[`Generate Diffed Markdown with lost coverage 2`] = `
+"# Code Coverage Report
+
+| Package | Base Coverage | New Coverage | Difference | Previously Covered | Lost Lines | Loss % |
+| ------- | ------------- | ------------ | ---------- | ------------------ | ---------- | ------ |
+| main.ts | 🔴 0% | 🔴 0% | ⚪ 0% | 0 | 0 | 0% |
+| reports/clover/index.ts | 🟢 100% | 🟢 100% | ⚪ 0% | 0 | 0 | 0% |
+| reports/clover/parser/index.ts | 🟢 84.31% | 🟢 84.31% | ⚪ 0% | 0 | 0 | 0% |
+| reports/clover/types/index.ts | 🟢 100% | 🟢 100% | ⚪ 0% | 0 | 0 | 0% |
+| reports/cobertura/index.ts | 🟠 66.67% | 🟠 66.67% | ⚪ 0% | 0 | 0 | 0% |
+| reports/cobertura/parser/index.ts | 🔴 13.33% | 🔴 13.33% | ⚪ 0% | 0 | 0 | 0% |
+| reports/cobertura/types/index.ts | 🟢 100% | 🟢 100% | ⚪ 0% | 0 | 0 | 0% |
+| utils.ts | 🟠 70.94% | 🟠 70.94% | ⚪ 0% | 45 | 3 | 6.67% |
+| **Overall Coverage** | **🟢 50.51%** | **🟢 50.51%** | **⚪ 0%** | **165** | **13** | **7.88%** |
+
+_Minimum allowed coverage is_ \`0%\`_, this run produced_ \`50.51%\`
+
+<details>
+<summary>⚠️ First 5 lost-line ranges</summary>
+
+- \`utils.ts\`: lines 18–20
+</details>
+"
+`;
+
 exports[`Only list changed files 1`] = `
 [
   "::debug::headCoverage: 49\\n",
