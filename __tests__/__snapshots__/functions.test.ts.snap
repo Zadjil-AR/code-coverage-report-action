@@ -139,6 +139,41 @@ _Minimum allowed coverage is_ \`0%\`_, this run produced_ \`49%\`
 "
 `;
 
+exports[`Fail on overall negative difference when negativeDifferenceBy is overall 1`] = `
+[
+  "::debug::headCoverage: 40\\n",
+  "::debug::baseCoverage: 50.51\\n",
+  "::debug::overallDifferencePercentage: -10.51\\n",
+  "::debug::negativeDifferenceThreshold: 0\\n",
+  "::error::FAIL: Overall coverage of dropped -10.51%25, from 50.51%25 to 40%25 which is below minimum threshold of 0%25\\n",
+  "Writing results to code-coverage-results.md\\n",
+  "\\n",
+  "::set-output name=file::code-coverage-results.md\\n",
+  "\\n",
+  "::set-output name=coverage::40\\n",
+  "Writing job summary\\n",
+]
+`;
+
+exports[`Fail on overall negative difference when negativeDifferenceBy is overall 2`] = `
+"# Code Coverage Report
+
+| Package | Base Coverage | New Coverage | Difference |
+| ------- | ------------- | ------------ | ---------- |
+| main.ts | 🔴 0% | 🔴 0% | ⚪ 0% |
+| reports/clover/index.ts | 🟢 100% | 🟢 100% | ⚪ 0% |
+| reports/clover/parser/index.ts | 🟢 84.31% | 🟢 84.31% | ⚪ 0% |
+| reports/clover/types/index.ts | 🟢 100% | 🟢 100% | ⚪ 0% |
+| reports/cobertura/index.ts | 🟠 66.67% | 🟠 66.67% | ⚪ 0% |
+| reports/cobertura/parser/index.ts | 🔴 13.33% | 🔴 13.33% | ⚪ 0% |
+| reports/cobertura/types/index.ts | 🟢 100% | 🟢 100% | ⚪ 0% |
+| utils.ts | 🟠 70.94% | 🟠 70.94% | ⚪ 0% |
+| **Overall Coverage** | **🟢 50.51%** | **🟢 40%** | **🔴 -10.51%** |
+
+_Minimum allowed coverage is_ \`0%\`_, this run produced_ \`40%\`
+"
+`;
+
 exports[`Generate Base Clover Markdown 1`] = `
 [
   "::debug::headCoverage: 50.51\\n",
@@ -315,6 +350,76 @@ _Minimum allowed coverage is_ \`0%\`_, this run produced_ \`50.51%\`
 "
 `;
 
+exports[`Generate markdown with badge enabled 1`] = `
+[
+  "::debug::headCoverage: 50.51\\n",
+  "::debug::baseCoverage: undefined\\n",
+  "::debug::overallDifferencePercentage: null\\n",
+  "::debug::negativeDifferenceThreshold: 0\\n",
+  "Writing results to code-coverage-results.md\\n",
+  "\\n",
+  "::set-output name=file::code-coverage-results.md\\n",
+  "\\n",
+  "::set-output name=coverage::50.51\\n",
+  "Writing job summary\\n",
+]
+`;
+
+exports[`Generate markdown with badge enabled 2`] = `
+"# Code Coverage Report
+
+![Code Coverage](https://img.shields.io/badge/Code%20Coverage-50.51%25-orange?style=for-the-badge)
+
+| Package |    Coverage   |
+| ------- | ------------- |
+| main.ts | 🔴 0% |
+| reports/clover/index.ts | 🟢 100% |
+| reports/clover/parser/index.ts | 🟢 84.31% |
+| reports/clover/types/index.ts | 🟢 100% |
+| reports/cobertura/index.ts | 🟠 66.67% |
+| reports/cobertura/parser/index.ts | 🔴 13.33% |
+| reports/cobertura/types/index.ts | 🟢 100% |
+| utils.ts | 🟠 70.94% |
+| **Overall Coverage** | **🟢 50.51%** |
+
+_Minimum allowed coverage is_ \`0%\`_, this run produced_ \`50.51%\`
+"
+`;
+
+exports[`Generate markdown with green color (high coverage) 1`] = `
+[
+  "::debug::headCoverage: 80\\n",
+  "::debug::baseCoverage: undefined\\n",
+  "::debug::overallDifferencePercentage: null\\n",
+  "::debug::negativeDifferenceThreshold: 0\\n",
+  "Writing results to code-coverage-results.md\\n",
+  "\\n",
+  "::set-output name=file::code-coverage-results.md\\n",
+  "\\n",
+  "::set-output name=coverage::80\\n",
+  "Writing job summary\\n",
+]
+`;
+
+exports[`Generate markdown with green color (high coverage) 2`] = `
+"# Code Coverage Report
+
+| Package |    Coverage   |
+| ------- | ------------- |
+| main.ts | 🔴 0% |
+| reports/clover/index.ts | 🟢 100% |
+| reports/clover/parser/index.ts | 🟢 84.31% |
+| reports/clover/types/index.ts | 🟢 100% |
+| reports/cobertura/index.ts | 🟠 66.67% |
+| reports/cobertura/parser/index.ts | 🔴 13.33% |
+| reports/cobertura/types/index.ts | 🟢 100% |
+| utils.ts | 🟠 70.94% |
+| **Overall Coverage** | **🟢 80%** |
+
+_Minimum allowed coverage is_ \`0%\`_, this run produced_ \`80%\`
+"
+`;
+
 exports[`Only list changed files 1`] = `
 [
   "::debug::headCoverage: 49\\n",
@@ -340,4 +445,14 @@ exports[`Only list changed files 2`] = `
 
 _Minimum allowed coverage is_ \`0%\`_, this run produced_ \`49%\`
 "
+`;
+
+exports[`generateMarkdown sets failed when template file does not exist 1`] = `
+[
+  "::debug::headCoverage: 50.51\\n",
+  "::debug::baseCoverage: 50.51\\n",
+  "::debug::overallDifferencePercentage: 0\\n",
+  "::debug::negativeDifferenceThreshold: 0\\n",
+  "::error::Unable to access template /nonexistent/template.hbs\\n",
+]
 `;
