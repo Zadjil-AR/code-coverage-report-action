@@ -280,13 +280,15 @@ function buildLostLinesByFile(
 
 /**
  * Format a lost-coverage value for display in the table.
- * Example: "🔴 5% (3 lines)"
+ * Shows the absolute count of lost lines followed by the percentage of
+ * originally-covered lines that were lost.
+ * Example: "🔴 3 lines (5%)"
  */
 export function formatLostCoverage(
   lostCount: number,
   lostPercentage: number
 ): string {
-  return `🔴 ${lostPercentage}% (${lostCount} line${lostCount === 1 ? '' : 's'})`;
+  return `🔴 ${lostCount} line${lostCount === 1 ? '' : 's'} (${lostPercentage}%)`;
 }
 
 /**

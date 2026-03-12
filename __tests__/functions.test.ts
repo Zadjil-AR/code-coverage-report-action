@@ -493,11 +493,11 @@ import { LostLinesReport } from '../src/interfaces'
 // ---------------------------------------------------------------------------
 
 test('formatLostCoverage formats single line correctly', () => {
-  expect(formatLostCoverage(1, 5)).toBe('🔴 5% (1 line)')
+  expect(formatLostCoverage(1, 5)).toBe('🔴 1 line (5%)')
 })
 
 test('formatLostCoverage formats multiple lines correctly', () => {
-  expect(formatLostCoverage(3, 12.5)).toBe('🔴 12.5% (3 lines)')
+  expect(formatLostCoverage(3, 12.5)).toBe('🔴 3 lines (12.5%)')
 })
 
 // ---------------------------------------------------------------------------
@@ -513,7 +513,7 @@ test('add overall row with base coverage and lost lines shows lost_coverage', as
     overallLostPercentage: 10
   }
   const out = addOverallRow(coverage, coverage, lostReport)
-  expect(out.lost_coverage).toBe('🔴 10% (10 lines)')
+  expect(out.lost_coverage).toBe('🔴 10 lines (10%)')
 })
 
 test('add overall row with lost lines report having zero lost shows no lost_coverage', async () => {
@@ -551,7 +551,7 @@ test('Generate markdown with lost lines report shows Lost Lines column', async (
   await generateMarkdown(coverage, coverage, lostReport)
   const summary = await getGithubStepSummary()
   expect(summary).toContain('Lost Lines')
-  expect(summary).toContain('🔴 2% (4 lines)')
+  expect(summary).toContain('🔴 4 lines (2%)')
   expect(summary).toContain('Lost coverage details')
 })
 
