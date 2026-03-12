@@ -434,3 +434,77 @@ test('run: pull_request with track_lost_lines=true when git diff fails warns and
   warnSpy.mockRestore()
   delete process.env.INPUT_TRACK_LOST_LINES
 })
+
+test('run: pull_request with track_lost_lines=true uploads covered lines for head branch', async () => {
+  process.env.GITHUB_EVENT_NAME = 'pull_request'
+  process.env.GITHUB_BASE_REF = 'main'
+  process.env.GITHUB_HEAD_REF = 'feature/my-branch'
+  process.env.INPUT_TRACK_LOST_LINES = 'true'
+
+  mockDownloadArtifacts.mockResolvedValue('/tmp/test-artifacts')
+  mockParseCoverage
+    .mockResolvedValueOnce(mockCoverage as any)
+    .mockResolvedValueOnce(mockCoverage as any)
+  mockReadCoveredLinesFile.mockResolvedValue({ 'src/foo.ts': [1, 2, 3] })
+  mockGetGitDiff.mockResolvedValue('')
+
+  await run()
+
+  expect(mockWriteCoveredLinesFile).toHaveBeenCalledWith(
+    'coverage-lines.json',
+    expect.anything()
+  )
+  expect(mockUploadArtifacts).toHaveBeenCalledWith(
+    ['coverage.xml', 'coverage-lines.json'],
+    'feature/my-branch'
+  )
+  delete process.env.INPUT_TRACK_LOST_LINES
+  delete process.env.GITHUB_HEAD_REF
+})
+
+test('run: pull_request without track_lost_lines does not upload covered lines for head branch', async () => {
+  process.env.GITHUB_EVENT_NAME = 'pull_request'
+  process.env.GITHUB_BASE_REF = 'main'
+  process.env.GITHUB_HEAD_REF = 'feature/my-branch'
+
+  mockDownloadArtifacts.mockResolvedValue('/tmp/test-artifacts')
+  mockParseCoverage
+    .mockResolvedValueOnce(mockCoverage as any)
+    .mockResolvedValueOnce(mockCoverage as any)
+
+  await run()
+
+  expect(mockWriteCoveredLinesFile).not.toHaveBeenCalled()
+  delete process.env.GITHUB_HEAD_REF
+})
+
+test('run: pull_request with track_lost_lines=true and exclude paths filters base covered lines map', async () => {
+  process.env.GITHUB_EVENT_NAME = 'pull_request'
+  process.env.GITHUB_BASE_REF = 'main'
+  process.env.GITHUB_HEAD_REF = 'feature/my-branch'
+  process.env.INPUT_TRACK_LOST_LINES = 'true'
+  process.env.INPUT_EXCLUDE_PATHS = 'tests/'
+
+  mockDownloadArtifacts.mockResolvedValue('/tmp/test-artifacts')
+  mockParseCoverage
+    .mockResolvedValueOnce(mockCoverage as any)
+    .mockResolvedValueOnce(mockCoverage as any)
+  // Simulate base map with one excluded file
+  mockReadCoveredLinesFile.mockResolvedValue({
+    'src/foo.ts': [1, 2, 3],
+    'tests/foo.test.ts': [4, 5]
+  })
+  mockGetGitDiff.mockResolvedValue('')
+
+  await run()
+
+  // computeLostLinesReport should have been called with the filtered map (no tests/ file)
+  expect(mockComputeLostLinesReport).toHaveBeenCalledWith(
+    { 'src/foo.ts': [1, 2, 3] }, // tests/ file excluded
+    expect.anything(),
+    expect.anything()
+  )
+  delete process.env.INPUT_TRACK_LOST_LINES
+  delete process.env.INPUT_EXCLUDE_PATHS
+  delete process.env.GITHUB_HEAD_REF
+})

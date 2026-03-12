@@ -32,6 +32,16 @@
 {{/unless}}
 {{#if inputs.showCoverageByTopDir}}
 ### Coverage by top-level directory
+{{#if lost_lines_report}}
+| Package | Base Coverage | New Coverage | Difference | Lost Lines |
+| ------- | ------------- | ------------ | ---------- | ---------- |
+{{#each coverage_by_top_dir}}
+| {{package}} | {{base_coverage}} | {{new_coverage}} | {{difference}} | {{#if lost_coverage}}{{lost_coverage}}{{else}}-{{/if}} |
+{{/each}}
+{{#with overall_coverage}}
+| **{{package}}** | **{{base_coverage}}** | **{{new_coverage}}** | **{{difference}}** | {{#if lost_coverage}}**{{lost_coverage}}**{{else}}-{{/if}} |
+{{/with}}
+{{else}}
 | Package | Base Coverage | New Coverage | Difference |
 | ------- | ------------- | ------------ | ---------- |
 {{#each coverage_by_top_dir}}
@@ -40,6 +50,7 @@
 {{#with overall_coverage}}
 | **{{package}}** | **{{base_coverage}}** | **{{new_coverage}}** | **{{difference}}** |
 {{/with}}
+{{/if}}
 
 {{/if}}
 _Minimum allowed coverage is_ `{{minimum_allowed_coverage}}`_, this run produced_ `{{new_coverage}}`

@@ -11,6 +11,7 @@ import {
   getParentDirFromFile,
   getPathAtDepth,
   getTopDirFromFile,
+  isPathExcluded,
   parseCoverage,
   readCoveredLinesFile,
   roundPercentage,
@@ -44,7 +45,7 @@ export async function run(): Promise<void> {
     switch (process.env.GITHUB_EVENT_NAME) {
       case 'pull_request':
       case 'pull_request_target': {
-        const { GITHUB_BASE_REF = '' } = process.env;
+        const { GITHUB_BASE_REF = '', GITHUB_HEAD_REF = '' } = process.env;
         core.debug(`GITHUB_BASE_REF: ${GITHUB_BASE_REF}`);
         const artifactPath = await downloadArtifacts(GITHUB_BASE_REF);
         core.debug(`artifactPath: ${artifactPath}`);
@@ -79,6 +80,18 @@ export async function run(): Promise<void> {
           baseCoverage = filterCoverageZeroLineFiles(baseCoverage);
         }
 
+        // Upload covered-lines JSON for the PR head branch when track_lost_lines is enabled,
+        // so this PR can serve as the base for a subsequent PR in a chain.
+        if (trackLostLines && GITHUB_HEAD_REF) {
+          const filesToUpload: string[] = [filename];
+          core.info(`Writing ${COVERED_LINES_FILENAME} for PR head branch...`);
+          await writeCoveredLinesFile(COVERED_LINES_FILENAME, headCoverage);
+          filesToUpload.push(COVERED_LINES_FILENAME);
+          core.info(`Uploading PR head artifact for ${GITHUB_HEAD_REF}...`);
+          await uploadArtifacts(filesToUpload, GITHUB_HEAD_REF);
+          core.info(`Complete`);
+        }
+
         core.info(`Complete`);
 
         //Base doesn't have an artifact
@@ -100,7 +113,8 @@ export async function run(): Promise<void> {
           lostLinesReport = await computePrLostLinesReport(
             artifactPath,
             GITHUB_BASE_REF,
-            headCoverage
+            headCoverage,
+            excludePaths
           );
         }
 
@@ -169,8 +183,9 @@ export async function run(): Promise<void> {
 /**
  * Compute the lost lines report for a PR by:
  * 1. Reading the base covered-lines JSON from the artifact directory.
- * 2. Running git diff to map old → new line numbers.
- * 3. Comparing base covered lines against head covered lines.
+ * 2. Filtering out files matching excludePaths (consistent with coverage filtering).
+ * 3. Running git diff to map old → new line numbers.
+ * 4. Comparing base covered lines against head covered lines.
  *
  * Returns undefined when the base artifact doesn't include covered-lines data
  * (e.g. it was uploaded before the feature was introduced).
@@ -178,12 +193,14 @@ export async function run(): Promise<void> {
 async function computePrLostLinesReport(
   artifactPath: string,
   baseRef: string,
-  headCoverage: Coverage
+  headCoverage: Coverage,
+  excludePaths: string[]
 ): Promise<LostLinesReport | undefined> {
   const coveredLinesFilePath = path.join(artifactPath, COVERED_LINES_FILENAME);
-  const baseCoveredLinesMap = await readCoveredLinesFile(coveredLinesFilePath);
+  const rawBaseCoveredLinesMap =
+    await readCoveredLinesFile(coveredLinesFilePath);
 
-  if (baseCoveredLinesMap === null) {
+  if (rawBaseCoveredLinesMap === null) {
     core.warning(
       `${COVERED_LINES_FILENAME} not found in base artifact. ` +
         `Lost lines analysis skipped. ` +
@@ -191,6 +208,13 @@ async function computePrLostLinesReport(
     );
     return undefined;
   }
+
+  // Apply the same exclude paths filter to the base covered-lines map so that
+  // excluded files are not considered in the lost-lines calculation.
+  const baseCoveredLinesMap = filterCoveredLinesMap(
+    rawBaseCoveredLinesMap,
+    excludePaths
+  );
 
   const headCoveredLinesMap = buildCoveredLinesMap(headCoverage);
 
@@ -211,6 +235,26 @@ async function computePrLostLinesReport(
     headCoveredLinesMap,
     gitDiffMap
   );
+}
+
+/**
+ * Filter a covered-lines map by exclude paths, returning a new map without
+ * entries whose relative path matches any of the given exclude prefixes.
+ */
+export function filterCoveredLinesMap(
+  map: Record<string, number[]>,
+  excludePaths: string[]
+): Record<string, number[]> {
+  if (excludePaths.length === 0) {
+    return map;
+  }
+  const result: Record<string, number[]> = {};
+  for (const [filePath, lines] of Object.entries(map)) {
+    if (!isPathExcluded(filePath, excludePaths)) {
+      result[filePath] = lines;
+    }
+  }
+  return result;
 }
 
 type CoverageGroupBy = 'file' | 'top_dir' | 'depth' | 'parent_dir';

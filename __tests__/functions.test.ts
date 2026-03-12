@@ -2,6 +2,8 @@ import * as core from '@actions/core'
 import {
   addOverallRow,
   aggregateCoverageByTopDir,
+  filterCoveredLinesMap,
+  formatLostCoverage,
   generateMarkdown
 } from '../src/functions'
 import {
@@ -558,4 +560,68 @@ test('Generate markdown without lost lines report does not show Lost Lines colum
   await generateMarkdown(coverage, coverage)
   const summary = await getGithubStepSummary()
   expect(summary).not.toContain('Lost Lines')
+})
+
+// ---------------------------------------------------------------------------
+// filterCoveredLinesMap
+// ---------------------------------------------------------------------------
+
+test('filterCoveredLinesMap with no exclude paths returns same map', () => {
+  const map = { 'src/a.ts': [1, 2], 'src/b.ts': [5] }
+  expect(filterCoveredLinesMap(map, [])).toBe(map) // identity
+})
+
+test('filterCoveredLinesMap excludes matching files', () => {
+  const map = {
+    'src/a.ts': [1, 2],
+    'tests/a.test.ts': [3, 4],
+    'src/b.ts': [5]
+  }
+  const result = filterCoveredLinesMap(map, ['tests/'])
+  expect(Object.keys(result)).toEqual(['src/a.ts', 'src/b.ts'])
+  expect(result['tests/a.test.ts']).toBeUndefined()
+})
+
+test('filterCoveredLinesMap with all paths excluded returns empty object', () => {
+  const map = { 'tests/a.ts': [1], 'tests/b.ts': [2] }
+  const result = filterCoveredLinesMap(map, ['tests/'])
+  expect(Object.keys(result)).toHaveLength(0)
+})
+
+// ---------------------------------------------------------------------------
+// generateMarkdown with showCoverageByTopDir and lost lines
+// ---------------------------------------------------------------------------
+
+test('Generate markdown with showCoverageByTopDir and lost lines shows Lost Lines column in top-dir table', async () => {
+  process.env.INPUT_SHOW_COVERAGE_BY_TOP_DIR = 'true'
+  const coverage = await loadJSONFixture('clover-parsed.json')
+  const lostReport: LostLinesReport = {
+    files: [
+      {
+        file: 'src/utils.ts',
+        lostRanges: [{ start: 5, end: 7 }],
+        baseCoveredCount: 50,
+        lostCount: 3,
+        lostPercentage: 6
+      }
+    ],
+    overallBaseCoveredCount: 200,
+    overallLostCount: 3,
+    overallLostPercentage: 1.5
+  }
+  await generateMarkdown(coverage, coverage, lostReport)
+  const summary = await getGithubStepSummary()
+  expect(summary).toContain('Coverage by top-level directory')
+  expect(summary).toContain('Lost Lines')
+  delete process.env.INPUT_SHOW_COVERAGE_BY_TOP_DIR
+})
+
+test('Generate markdown with showCoverageByTopDir without lost lines does not show Lost Lines column', async () => {
+  process.env.INPUT_SHOW_COVERAGE_BY_TOP_DIR = 'true'
+  const coverage = await loadJSONFixture('clover-parsed.json')
+  await generateMarkdown(coverage, coverage)
+  const summary = await getGithubStepSummary()
+  expect(summary).toContain('Coverage by top-level directory')
+  expect(summary).not.toContain('Lost Lines')
+  delete process.env.INPUT_SHOW_COVERAGE_BY_TOP_DIR
 })

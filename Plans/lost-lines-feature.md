@@ -52,8 +52,13 @@ Line numbers are stored as a sorted `number[]` in `CoverageFile.covered_lines`.
 ## Covered Lines Artifact File
 
 A new JSON file `coverage-lines.json` is written and uploaded alongside the existing
-coverage XML when `track_lost_lines=true` and the event is `push` / `schedule` /
-`workflow_dispatch`.
+coverage XML when `track_lost_lines=true`.
+
+- **push / schedule / workflow_dispatch**: Uploaded as part of the branch artifact named
+  after `GITHUB_REF_NAME`.
+- **pull_request / pull_request_target**: Also uploaded using `GITHUB_HEAD_REF` as the
+  artifact name. This enables the PR branch to serve as the base for a subsequent PR in a
+  chain (i.e. chained PRs can each compare lost lines against their immediate parent).
 
 ### Format (compact — uses ranges)
 
@@ -125,7 +130,7 @@ counted as lost.
 ## Computing Lost Lines
 
 ```
-for each file in baseCoveredLinesMap:
+for each file in baseCoveredLinesMap (after applying excludePaths filter):
     lostLines = []
     resolver = buildLineResolver(gitDiff[file].hunks ?? [])
     headSet  = Set(headCoveredLinesMap[newPath] ?? [])
@@ -138,6 +143,10 @@ for each file in baseCoveredLinesMap:
         convert lostLines to ranges
         append FileLostLines entry
 ```
+
+Note: the `excludePaths` input is applied to the `baseCoveredLinesMap` read from the base
+artifact before the comparison begins, so that files explicitly excluded from coverage
+reporting are also excluded from lost-lines calculations.
 
 ---
 
