@@ -11,6 +11,27 @@ export interface CoverageFile {
   coverage: number;
   lines_covered?: number;
   lines_valid?: number;
+  covered_lines?: number[];
+}
+
+export interface LineRange {
+  start: number;
+  end: number;
+}
+
+export interface FileLostLines {
+  file: string;
+  lostRanges: LineRange[];
+  baseCoveredCount: number;
+  lostCount: number;
+  lostPercentage: number;
+}
+
+export interface LostLinesReport {
+  files: FileLostLines[];
+  overallBaseCoveredCount: number;
+  overallLostCount: number;
+  overallLostPercentage: number;
 }
 
 export interface Inputs {
@@ -35,6 +56,7 @@ export interface Inputs {
   coverageDepth: number | undefined;
   showCoverageByParentDir: boolean;
   excludePaths: string[];
+  trackLostLines: boolean;
 }
 
 export interface Files {
@@ -48,6 +70,7 @@ export interface HandlebarContextCoverage {
   difference?: string;
   /** Plain percentage for summary line only (no emoji), e.g. "0%" or "-1.51%" */
   difference_plain?: string;
+  lost_coverage?: string;
 }
 
 export interface HandlebarContext {
@@ -60,4 +83,5 @@ export interface HandlebarContext {
   overall_coverage: HandlebarContextCoverage;
   coverage_by_top_dir?: HandlebarContextCoverage[];
   inputs: Inputs;
+  lost_lines_report?: LostLinesReport;
 }

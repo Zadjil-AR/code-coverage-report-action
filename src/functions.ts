@@ -1,7 +1,9 @@
 import * as core from '@actions/core';
 import {
+  buildCoveredLinesMap,
   checkFileExists,
   colorizePercentageByThreshold,
+  COVERED_LINES_FILENAME,
   downloadArtifacts,
   filterCoverageByExcludePaths,
   filterCoverageZeroLineFiles,
@@ -10,19 +12,23 @@ import {
   getPathAtDepth,
   getTopDirFromFile,
   parseCoverage,
+  readCoveredLinesFile,
   roundPercentage,
-  uploadArtifacts
+  uploadArtifacts,
+  writeCoveredLinesFile
 } from './utils';
 import {
   Coverage,
   CoverageFile,
   HandlebarContext,
-  HandlebarContextCoverage
+  HandlebarContextCoverage,
+  LostLinesReport
 } from './interfaces';
 import { writeFile } from 'fs/promises';
 import path from 'path';
 import Handlebars from 'handlebars';
 import { readFile } from 'node:fs/promises';
+import { computeLostLinesReport, getGitDiff, parseGitDiff } from './lost-lines';
 
 export async function run(): Promise<void> {
   try {
@@ -55,7 +61,7 @@ export async function run(): Promise<void> {
           return;
         }
 
-        const { excludePaths } = getInputs();
+        const { excludePaths, trackLostLines } = getInputs();
         if (excludePaths.length > 0) {
           headCoverage = filterCoverageByExcludePaths(
             headCoverage,
@@ -88,10 +94,20 @@ export async function run(): Promise<void> {
           return;
         }
 
+        // Compute lost lines when the feature is enabled and base artifact is present
+        let lostLinesReport: LostLinesReport | undefined;
+        if (trackLostLines && artifactPath !== null) {
+          lostLinesReport = await computePrLostLinesReport(
+            artifactPath,
+            GITHUB_BASE_REF,
+            headCoverage
+          );
+        }
+
         core.info(
           `Generating markdown between ${headCoverage.basePath} and ${baseCoverage.basePath}...`
         );
-        await generateMarkdown(headCoverage, baseCoverage);
+        await generateMarkdown(headCoverage, baseCoverage, lostLinesReport);
         core.info(`Complete`);
         break;
       }
@@ -100,12 +116,8 @@ export async function run(): Promise<void> {
       case 'workflow_dispatch':
         {
           const { GITHUB_REF_NAME = '', GITHUB_WORKFLOW = '' } = process.env;
-          core.info(`Uploading ${filename}...`);
-          await uploadArtifacts([filename], GITHUB_REF_NAME);
-          core.debug(
-            `GITHUB_REF_NAME: ${GITHUB_REF_NAME}, filename: ${filename}`
-          );
-          core.info(`Complete`);
+          const { trackLostLines } = getInputs();
+          const filesToUpload = [filename];
 
           core.info(`Parsing coverage file: ${filename}...`);
           let headCoverage = await parseCoverage(filename);
@@ -121,6 +133,21 @@ export async function run(): Promise<void> {
           if (headCoverage != null) {
             headCoverage = filterCoverageZeroLineFiles(headCoverage);
           }
+
+          // Write covered-lines JSON when track_lost_lines is enabled
+          if (trackLostLines && headCoverage != null) {
+            core.info(`Writing ${COVERED_LINES_FILENAME}...`);
+            await writeCoveredLinesFile(COVERED_LINES_FILENAME, headCoverage);
+            filesToUpload.push(COVERED_LINES_FILENAME);
+            core.info(`Complete`);
+          }
+
+          core.info(`Uploading ${filesToUpload.join(', ')}...`);
+          await uploadArtifacts(filesToUpload, GITHUB_REF_NAME);
+          core.debug(
+            `GITHUB_REF_NAME: ${GITHUB_REF_NAME}, filename: ${filename}`
+          );
+          core.info(`Complete`);
 
           core.info(`Workflow Name: ${GITHUB_WORKFLOW}`);
 
@@ -139,7 +166,84 @@ export async function run(): Promise<void> {
   }
 }
 
+/**
+ * Compute the lost lines report for a PR by:
+ * 1. Reading the base covered-lines JSON from the artifact directory.
+ * 2. Running git diff to map old → new line numbers.
+ * 3. Comparing base covered lines against head covered lines.
+ *
+ * Returns undefined when the base artifact doesn't include covered-lines data
+ * (e.g. it was uploaded before the feature was introduced).
+ */
+async function computePrLostLinesReport(
+  artifactPath: string,
+  baseRef: string,
+  headCoverage: Coverage
+): Promise<LostLinesReport | undefined> {
+  const coveredLinesFilePath = path.join(artifactPath, COVERED_LINES_FILENAME);
+  const baseCoveredLinesMap = await readCoveredLinesFile(coveredLinesFilePath);
+
+  if (baseCoveredLinesMap === null) {
+    core.warning(
+      `${COVERED_LINES_FILENAME} not found in base artifact. ` +
+        `Lost lines analysis skipped. ` +
+        `Ensure track_lost_lines=true was set when the base branch artifact was created.`
+    );
+    return undefined;
+  }
+
+  const headCoveredLinesMap = buildCoveredLinesMap(headCoverage);
+
+  core.info(`Running git diff for lost lines analysis...`);
+  let diffOutput: string;
+  try {
+    diffOutput = await getGitDiff(baseRef);
+  } catch (err: any) {
+    core.warning(
+      `git diff failed: ${err.message}. Lost lines analysis skipped.`
+    );
+    return undefined;
+  }
+
+  const gitDiffMap = parseGitDiff(diffOutput);
+  return computeLostLinesReport(
+    baseCoveredLinesMap,
+    headCoveredLinesMap,
+    gitDiffMap
+  );
+}
+
 type CoverageGroupBy = 'file' | 'top_dir' | 'depth' | 'parent_dir';
+
+/**
+ * Build a Map from relative file path → FileLostLines entry for O(1) lookup.
+ */
+function buildLostLinesByFile(
+  lostLinesReport?: LostLinesReport
+): Map<string, { lostCount: number; lostPercentage: number }> {
+  if (!lostLinesReport) {
+    return new Map();
+  }
+  const map = new Map<string, { lostCount: number; lostPercentage: number }>();
+  for (const entry of lostLinesReport.files) {
+    map.set(entry.file, {
+      lostCount: entry.lostCount,
+      lostPercentage: entry.lostPercentage
+    });
+  }
+  return map;
+}
+
+/**
+ * Format a lost-coverage value for display in the table.
+ * Example: "🔴 5% (3 lines)"
+ */
+export function formatLostCoverage(
+  lostCount: number,
+  lostPercentage: number
+): string {
+  return `🔴 ${lostPercentage}% (${lostCount} line${lostCount === 1 ? '' : 's'})`;
+}
 
 /**
  * Build coverage rows for the template: per-file, or aggregated by top_dir, depth, or parent_dir.
@@ -156,7 +260,8 @@ function buildCoverageRows(
   onlyListChangedFiles: boolean,
   failOnNegativeDifference: boolean,
   negativeDifferenceBy: string,
-  negativeDifferenceThreshold: number
+  negativeDifferenceThreshold: number,
+  lostLinesReport?: LostLinesReport
 ): HandlebarContextCoverage[] {
   const fileEntries = Object.entries(headCoverage.files).filter(
     ([hash, file]) => {
@@ -185,6 +290,9 @@ function buildCoverageRows(
         : 'file';
 
   if (groupBy === 'file') {
+    // Build a lookup for lost lines per file for O(1) access
+    const lostByFile = buildLostLinesByFile(lostLinesReport);
+
     return fileEntries
       .map(([hash, file]) => {
         if (baseCoverage === null) {
@@ -214,6 +322,7 @@ function buildCoverageRows(
             `${file.relative} coverage difference was ${differencePercentage}% which is below threshold of ${negativeDifferenceThreshold}%`
           );
         }
+        const lostEntry = lostByFile.get(file.relative);
         return {
           package: file.relative,
           base_coverage: `${colorizePercentageByThreshold(
@@ -226,7 +335,10 @@ function buildCoverageRows(
             fileCoverageWarningMax,
             fileCoverageErrorMin
           )}`,
-          difference: colorizePercentageByThreshold(differencePercentage)
+          difference: colorizePercentageByThreshold(differencePercentage),
+          lost_coverage: lostEntry
+            ? formatLostCoverage(lostEntry.lostCount, lostEntry.lostPercentage)
+            : undefined
         };
       })
       .sort((a, b) =>
@@ -307,7 +419,8 @@ function buildCoverageRows(
 
 export async function generateMarkdown(
   headCoverage: Coverage,
-  baseCoverage: Coverage | null = null
+  baseCoverage: Coverage | null = null,
+  lostLinesReport?: LostLinesReport
 ): Promise<void> {
   const inputs = getInputs();
   const {
@@ -402,9 +515,14 @@ export async function generateMarkdown(
           onlyListChangedFiles,
           failOnNegativeDifference,
           negativeDifferenceBy,
-          negativeDifferenceThreshold
+          negativeDifferenceThreshold,
+          lostLinesReport
         ),
-    overall_coverage: addOverallRow(headCoverage, baseCoverage),
+    overall_coverage: addOverallRow(
+      headCoverage,
+      baseCoverage,
+      lostLinesReport
+    ),
     coverage_by_top_dir: showCoverageByTopDir
       ? aggregateCoverageByTopDir(
           headCoverage,
@@ -413,7 +531,8 @@ export async function generateMarkdown(
           fileCoverageErrorMin
         )
       : [],
-    inputs
+    inputs,
+    lost_lines_report: lostLinesReport
   };
 
   context.show_package_coverage = !skipPackageCoverage;
@@ -552,7 +671,8 @@ export function aggregateCoverageByTopDir(
  */
 export function addOverallRow(
   headCoverage: Coverage,
-  baseCoverage: Coverage | null = null
+  baseCoverage: Coverage | null = null,
+  lostLinesReport?: LostLinesReport
 ): HandlebarContextCoverage {
   const { overallCoverageFailThreshold } = getInputs();
 
@@ -571,7 +691,15 @@ export function addOverallRow(
     };
   }
 
-  return {
+  const lost_coverage =
+    lostLinesReport && lostLinesReport.overallLostCount > 0
+      ? formatLostCoverage(
+          lostLinesReport.overallLostCount,
+          lostLinesReport.overallLostPercentage
+        )
+      : undefined;
+
+  const result: HandlebarContextCoverage = {
     package: 'Overall Coverage',
     base_coverage: `${colorizePercentageByThreshold(
       baseCoverage.coverage,
@@ -589,4 +717,10 @@ export function addOverallRow(
         ? `${String(overallDifferencePercentage)}%`
         : undefined
   };
+
+  if (lost_coverage !== undefined) {
+    result.lost_coverage = lost_coverage;
+  }
+
+  return result;
 }

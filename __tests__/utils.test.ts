@@ -14,7 +14,10 @@ import {
   filterCoverageByExcludePaths,
   filterCoverageZeroLineFiles,
   parseXML,
-  parseCoverage
+  parseCoverage,
+  buildCoveredLinesMap,
+  writeCoveredLinesFile,
+  readCoveredLinesFile
 } from '../src/utils'
 import {
   expect,
@@ -187,6 +190,7 @@ test('getInputs', () => {
     showCoverageByParentDir: false,
     excludePaths: [],
     onlyListChangedFiles: false,
+    trackLostLines: false,
     //This is a cheat
     withBaseCoverageTemplate: f.withBaseCoverageTemplate,
     withoutBaseCoverageTemplate: f.withoutBaseCoverageTemplate
@@ -326,6 +330,7 @@ test('parse clover into file format', async () => {
   for (const file of Object.values(ret?.files ?? {})) {
     expect(file).toHaveProperty('lines_covered')
     expect(file).toHaveProperty('lines_valid')
+    expect(file).toHaveProperty('covered_lines')
   }
 })
 
@@ -333,7 +338,10 @@ test('parse cobertura file format', async () => {
   const ret = await parseCoverage(__dirname + '/fixtures/cobertura.xml')
 
   const loadedFixture = await loadJSONFixture('cobertura-parsed.json')
-  expect(loadedFixture).toEqual(ret)
+  expect(ret).toMatchObject(loadedFixture)
+  for (const file of Object.values(ret?.files ?? {})) {
+    expect(file).toHaveProperty('covered_lines')
+  }
 })
 
 test('parse empty cobertura file', async () => {
@@ -371,4 +379,104 @@ test('parse many sources cobertura file', async () => {
     __dirname + '/fixtures/cobertura-many-sources.xml'
   )
   expect(ret).toMatchSnapshot()
+})
+
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
+
+// ---------------------------------------------------------------------------
+// buildCoveredLinesMap
+// ---------------------------------------------------------------------------
+
+test('buildCoveredLinesMap returns map of relative paths to covered lines', async () => {
+  const coverage = await parseCoverage(__dirname + '/fixtures/cobertura.xml')
+  const map = buildCoveredLinesMap(coverage!)
+  // Should have entries for files that have covered lines
+  expect(Object.keys(map).length).toBeGreaterThan(0)
+  for (const lines of Object.values(map)) {
+    expect(Array.isArray(lines)).toBe(true)
+    expect(lines.length).toBeGreaterThan(0)
+  }
+})
+
+test('buildCoveredLinesMap returns empty object when no covered lines', () => {
+  const coverage = {
+    files: {
+      abc: {
+        relative: 'src/a.ts',
+        absolute: '/src/a.ts',
+        coverage: 0
+        // no covered_lines
+      }
+    },
+    coverage: 0,
+    timestamp: 0,
+    basePath: ''
+  }
+  const map = buildCoveredLinesMap(coverage)
+  expect(Object.keys(map)).toHaveLength(0)
+})
+
+// ---------------------------------------------------------------------------
+// writeCoveredLinesFile / readCoveredLinesFile round-trip
+// ---------------------------------------------------------------------------
+
+test('writeCoveredLinesFile and readCoveredLinesFile round-trip', async () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+
+  const tmpFile = path.join(os.tmpdir(), `coverage-lines-test-${Date.now()}.json`)
+
+  const coverage = {
+    files: {
+      hash1: {
+        relative: 'src/a.ts',
+        absolute: '/src/a.ts',
+        coverage: 75,
+        covered_lines: [1, 2, 3, 5, 6]
+      },
+      hash2: {
+        relative: 'src/b.ts',
+        absolute: '/src/b.ts',
+        coverage: 100,
+        covered_lines: [10, 11, 12]
+      }
+    },
+    coverage: 87,
+    timestamp: 0,
+    basePath: ''
+  }
+
+  await writeCoveredLinesFile(tmpFile, coverage)
+
+  // Verify the file was written
+  const exists = await checkFileExists(tmpFile)
+  expect(exists).toBe(true)
+
+  // Verify it can be read back
+  const result = await readCoveredLinesFile(tmpFile)
+  expect(result).not.toBeNull()
+  expect(result!['src/a.ts']).toEqual([1, 2, 3, 5, 6])
+  expect(result!['src/b.ts']).toEqual([10, 11, 12])
+
+  await fs.promises.unlink(tmpFile)
+})
+
+test('readCoveredLinesFile returns null when file does not exist', async () => {
+  const result = await readCoveredLinesFile('/nonexistent/path/coverage-lines.json')
+  expect(result).toBeNull()
+})
+
+test('getInputs returns trackLostLines true when INPUT_TRACK_LOST_LINES is true', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_TRACK_LOST_LINES = 'true'
+
+  const f = getInputs()
+  expect(f.trackLostLines).toBe(true)
+
+  delete process.env.INPUT_TRACK_LOST_LINES
 })

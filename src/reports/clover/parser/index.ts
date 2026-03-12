@@ -65,7 +65,12 @@ async function parseFiles(files: File[] | undefined | null): Promise<Files> {
     files?.reduce(
       (
         previous,
-        { '@_name': name, metrics: fileMetrics, '@_path': path }: File
+        {
+          '@_name': name,
+          metrics: fileMetrics,
+          '@_path': path,
+          line: lineElements
+        }: File
       ) => {
         const coveredSum =
           (parseInt(fileMetrics['@_coveredconditionals'], 10) || 0) +
@@ -75,6 +80,9 @@ async function parseFiles(files: File[] | undefined | null): Promise<Files> {
           (parseInt(fileMetrics['@_conditionals'], 10) || 0) +
           (parseInt(fileMetrics['@_statements'], 10) || 0) +
           (parseInt(fileMetrics['@_methods'], 10) || 0);
+
+        const covered_lines = extractCloverCoveredLines(lineElements);
+
         return {
           ...previous,
           [createHash(path ?? name)]: {
@@ -82,13 +90,33 @@ async function parseFiles(files: File[] | undefined | null): Promise<Files> {
             absolute: path ?? name,
             coverage: processCoverageMetrics(fileMetrics),
             lines_covered: coveredSum,
-            lines_valid: codeSum
+            lines_valid: codeSum,
+            covered_lines
           }
         };
       },
       {}
     ) ?? {}
   );
+}
+
+/**
+ * Extract covered line numbers from Clover line elements.
+ * A line is covered when its `count` attribute is > 0.
+ */
+function extractCloverCoveredLines(lineElements: File['line']): number[] {
+  if (!lineElements || lineElements.length === 0) {
+    return [];
+  }
+  const covered: number[] = [];
+  for (const line of lineElements) {
+    const count = parseInt(line['@_count'] ?? '0', 10);
+    const num = parseInt(line['@_num'] ?? '0', 10);
+    if (count > 0 && num > 0) {
+      covered.push(num);
+    }
+  }
+  return covered.sort((a, b) => a - b);
 }
 
 /**

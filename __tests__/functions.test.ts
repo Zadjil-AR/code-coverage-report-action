@@ -482,3 +482,80 @@ function getStdoutWriteCalls(): string[] {
     JSON.stringify(call[0], null, 2).replace(/^"|"$/g, '')
   )
 }
+
+import { formatLostCoverage } from '../src/functions'
+import { LostLinesReport } from '../src/interfaces'
+
+// ---------------------------------------------------------------------------
+// formatLostCoverage
+// ---------------------------------------------------------------------------
+
+test('formatLostCoverage formats single line correctly', () => {
+  expect(formatLostCoverage(1, 5)).toBe('🔴 5% (1 line)')
+})
+
+test('formatLostCoverage formats multiple lines correctly', () => {
+  expect(formatLostCoverage(3, 12.5)).toBe('🔴 12.5% (3 lines)')
+})
+
+// ---------------------------------------------------------------------------
+// addOverallRow with lost lines report
+// ---------------------------------------------------------------------------
+
+test('add overall row with base coverage and lost lines shows lost_coverage', async () => {
+  const coverage = await loadJSONFixture('clover-parsed.json')
+  const lostReport: LostLinesReport = {
+    files: [],
+    overallBaseCoveredCount: 100,
+    overallLostCount: 10,
+    overallLostPercentage: 10
+  }
+  const out = addOverallRow(coverage, coverage, lostReport)
+  expect(out.lost_coverage).toBe('🔴 10% (10 lines)')
+})
+
+test('add overall row with lost lines report having zero lost shows no lost_coverage', async () => {
+  const coverage = await loadJSONFixture('clover-parsed.json')
+  const lostReport: LostLinesReport = {
+    files: [],
+    overallBaseCoveredCount: 100,
+    overallLostCount: 0,
+    overallLostPercentage: 0
+  }
+  const out = addOverallRow(coverage, coverage, lostReport)
+  expect(out.lost_coverage).toBeUndefined()
+})
+
+// ---------------------------------------------------------------------------
+// generateMarkdown with lost lines report
+// ---------------------------------------------------------------------------
+
+test('Generate markdown with lost lines report shows Lost Lines column', async () => {
+  const coverage = await loadJSONFixture('clover-parsed.json')
+  const lostReport: LostLinesReport = {
+    files: [
+      {
+        file: 'src/utils.ts',
+        lostRanges: [{ start: 5, end: 7 }, { start: 10, end: 10 }],
+        baseCoveredCount: 50,
+        lostCount: 4,
+        lostPercentage: 8
+      }
+    ],
+    overallBaseCoveredCount: 200,
+    overallLostCount: 4,
+    overallLostPercentage: 2
+  }
+  await generateMarkdown(coverage, coverage, lostReport)
+  const summary = await getGithubStepSummary()
+  expect(summary).toContain('Lost Lines')
+  expect(summary).toContain('🔴 2% (4 lines)')
+  expect(summary).toContain('Lost coverage details')
+})
+
+test('Generate markdown without lost lines report does not show Lost Lines column', async () => {
+  const coverage = await loadJSONFixture('clover-parsed.json')
+  await generateMarkdown(coverage, coverage)
+  const summary = await getGithubStepSummary()
+  expect(summary).not.toContain('Lost Lines')
+})

@@ -80,6 +80,10 @@ inputs:
     description: 'Comma-separated path prefixes to exclude from coverage (e.g. tests/, e2e/, docs/). Files whose relative path starts with any prefix are excluded from the report and from overall coverage.'
     required: false
     default: ''
+  track_lost_lines:
+    description: 'When true, track lines that were previously covered but are no longer covered. Requires the base branch artifact to also have been created with track_lost_lines=true.'
+    required: false
+    default: 'false'
 
 
 outputs:

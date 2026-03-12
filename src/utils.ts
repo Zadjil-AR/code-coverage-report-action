@@ -557,6 +557,8 @@ export function getInputs(): Inputs {
           .map((p) => p.trim())
           .filter(Boolean);
 
+  const trackLostLines = core.getInput('track_lost_lines') === 'true';
+
   return {
     token,
     filename,
@@ -578,7 +580,8 @@ export function getInputs(): Inputs {
     showCoverageByTopDir,
     coverageDepth,
     showCoverageByParentDir,
-    excludePaths
+    excludePaths,
+    trackLostLines
   };
 }
 
@@ -615,4 +618,101 @@ function inArray(needle: string, haystack: string[]): boolean {
     }
   }
   return false;
+}
+
+/** Filename used for the covered-lines JSON uploaded alongside the coverage XML. */
+export const COVERED_LINES_FILENAME = 'coverage-lines.json';
+
+/** Structure of the covered-lines JSON file. */
+export interface CoveredLinesFile {
+  version: 1;
+  /** Maps relative file path → array of [start, end] covered line range tuples. */
+  files: Record<string, [number, number][]>;
+}
+
+/**
+ * Build a covered-lines map (relative path → flat sorted number[]) from a Coverage object.
+ * Only files that have `covered_lines` populated are included.
+ */
+export function buildCoveredLinesMap(
+  coverage: Coverage
+): Record<string, number[]> {
+  const result: Record<string, number[]> = {};
+  for (const file of Object.values(coverage.files)) {
+    if (file.covered_lines && file.covered_lines.length > 0) {
+      result[file.relative] = file.covered_lines;
+    }
+  }
+  return result;
+}
+
+/**
+ * Write the covered-lines JSON file to disk.
+ * Uses compact [start,end] range tuples to minimise file size.
+ */
+export async function writeCoveredLinesFile(
+  outputPath: string,
+  coverage: Coverage
+): Promise<void> {
+  const filesMap: Record<string, [number, number][]> = {};
+  for (const file of Object.values(coverage.files)) {
+    if (file.covered_lines && file.covered_lines.length > 0) {
+      filesMap[file.relative] = coveredLinesToRangesTuples(file.covered_lines);
+    }
+  }
+  const data: CoveredLinesFile = { version: 1, files: filesMap };
+  await fs.writeFile(outputPath, JSON.stringify(data), 'utf8');
+}
+
+/**
+ * Read the covered-lines JSON file from disk and return a map of
+ * relative path → flat sorted covered line numbers.
+ * Returns null if the file does not exist (e.g. old artifact without this feature).
+ */
+export async function readCoveredLinesFile(
+  filePath: string
+): Promise<Record<string, number[]> | null> {
+  if (!(await checkFileExists(filePath))) {
+    return null;
+  }
+  const raw = await readFile(filePath, 'utf8');
+  const data: CoveredLinesFile = JSON.parse(raw);
+  const result: Record<string, number[]> = {};
+  for (const [rel, ranges] of Object.entries(data.files)) {
+    result[rel] = rangeTuplesToLines(ranges);
+  }
+  return result;
+}
+
+/** Convert a sorted number[] to compact [[start,end]] tuples (private helper). */
+function coveredLinesToRangesTuples(lines: number[]): [number, number][] {
+  if (lines.length === 0) {
+    return [];
+  }
+  const sorted = [...lines].sort((a, b) => a - b);
+  const ranges: [number, number][] = [];
+  let start = sorted[0];
+  let end = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) {
+      end = sorted[i];
+    } else {
+      ranges.push([start, end]);
+      start = sorted[i];
+      end = sorted[i];
+    }
+  }
+  ranges.push([start, end]);
+  return ranges;
+}
+
+/** Convert [[start,end]] tuples back to a flat sorted number[] (private helper). */
+function rangeTuplesToLines(ranges: [number, number][]): number[] {
+  const lines: number[] = [];
+  for (const [start, end] of ranges) {
+    for (let n = start; n <= end; n++) {
+      lines.push(n);
+    }
+  }
+  return lines;
 }
