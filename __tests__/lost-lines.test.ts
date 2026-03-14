@@ -396,7 +396,7 @@ describe('computeLostLinesReport', () => {
 
     const report = computeLostLinesReport(base, head, diff)
     expect(report.overallLostCount).toBe(2)
-    expect(report.files[0].file).toBe('old/foo.ts')
+    expect(report.files[0].file).toBe('new/foo.ts')
   })
 
   test('does not count deleted lines from a modified file as lost', () => {

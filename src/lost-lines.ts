@@ -269,7 +269,7 @@ export function computeLostLinesReport(
         (lost.length / baseCoveredLines.length) * 100
       );
       files.push({
-        file: filePath,
+        file: newPath,
         lostRanges,
         baseCoveredCount: baseCoveredLines.length,
         lostCount: lost.length,

@@ -200,7 +200,8 @@ export async function uploadArtifacts(
  * @returns {Promise<Coverage | null>}
  */
 export async function parseCoverage(
-  filename: string
+  filename: string,
+  trackLostLines = false
 ): Promise<Coverage | null> {
   if (!(await checkFileExists(filename))) {
     core.warning(`Unable to access ${filename} for parsing`);
@@ -216,10 +217,10 @@ export async function parseCoverage(
 
         if (instanceOfCobertura(xml)) {
           core.info(`Detected a Cobertura File at ${filename}`);
-          return await parseCobertura(xml);
+          return await parseCobertura(xml, trackLostLines);
         } else if (instanceOfClover(xml)) {
           core.info(`Detected a Clover File at ${filename}`);
-          return await parseClover(xml);
+          return await parseClover(xml, trackLostLines);
         }
       }
       break;

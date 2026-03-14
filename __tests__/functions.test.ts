@@ -485,7 +485,6 @@ function getStdoutWriteCalls(): string[] {
   )
 }
 
-import { formatLostCoverage } from '../src/functions'
 import { LostLinesReport } from '../src/interfaces'
 
 // ---------------------------------------------------------------------------

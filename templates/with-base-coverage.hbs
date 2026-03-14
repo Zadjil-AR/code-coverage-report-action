@@ -57,7 +57,7 @@ _Minimum allowed coverage is_ `{{minimum_allowed_coverage}}`_, this run produced
 {{#if negative_difference_threshold}}
 _Maximum allowed coverage difference is_ `{{negative_difference_threshold}}`{{#if overall_coverage.difference}}_, this run produced_ `{{#if overall_coverage.difference_plain}}{{overall_coverage.difference_plain}}{{else}}0%{{/if}}`{{/if}}
 {{/if}}
-{{#if lost_lines_report.files}}
+{{#if lost_lines_report.overallLostCount}}
 
 <details>
 <summary>Lost coverage details ({{lost_lines_report.overallLostCount}} lines lost across {{lost_lines_report.files.length}} file(s))</summary>

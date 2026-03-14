@@ -1,5 +1,33 @@
 # Plan: Report of Line Coverage Lost
 
+## PR Summary
+
+This feature adds a `track_lost_lines` input flag that, when enabled, tracks which
+previously-covered source lines are no longer covered after a PR's changes. The full
+feature includes:
+
+- **`track_lost_lines` input flag** — boolean, default `false`; gates the entire feature
+  so there is zero overhead when disabled.
+- **`covered_lines` capture** — Cobertura and Clover parsers are updated to populate an
+  optional `covered_lines: number[]` field per file only when the flag is on.
+- **`coverage-lines.json` artifact** — covered-line arrays are serialized and uploaded as
+  an artifact from the base-branch run for later comparison.
+- **`git diff` parsing** — line movements across the PR are resolved via hunk parsing so
+  base line numbers are mapped to their new positions in the PR head.
+- **Per-file and overall lost-lines report** — `computeLostLinesReport` produces a
+  `LostLinesReport` with per-file `FileLostLines` entries and aggregate counts/percentages.
+- **Template changes** — the `with-base-coverage.hbs` template renders a "Lost Lines"
+  column in existing coverage tables and a collapsible details block (shown only when
+  `overallLostCount > 0`).
+- **PR-head artifact upload** — covered-line data is also uploaded from the PR head run
+  to support chained PR comparisons.
+- **Exclude-paths filtering** — `excludePaths` input is applied to the lost-lines
+  calculation so ignored files are excluded from the report.
+- **Renamed-file support** — lost-lines report uses `newPath` (the post-rename path) so
+  file entries match the head-coverage file list correctly.
+
+---
+
 ## Goal
 
 When a PR's code coverage is compared against the base branch, identify and report any

@@ -390,7 +390,7 @@ import path from 'path'
 // ---------------------------------------------------------------------------
 
 test('buildCoveredLinesMap returns map of relative paths to covered lines', async () => {
-  const coverage = await parseCoverage(__dirname + '/fixtures/cobertura.xml')
+  const coverage = await parseCoverage(__dirname + '/fixtures/cobertura.xml', true)
   const map = buildCoveredLinesMap(coverage!)
   // Should have entries for files that have covered lines
   expect(Object.keys(map).length).toBeGreaterThan(0)

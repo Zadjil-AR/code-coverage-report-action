@@ -7,8 +7,8 @@ import {
 } from '../../../utils';
 import { Cobertura, Package, Class, Lines } from '../types';
 
-export default async function parse(cobertura: Cobertura): Promise<Coverage> {
-  const files: Files = await parsePackages(cobertura.coverage.packages.package);
+export default async function parse(cobertura: Cobertura, trackLostLines = false): Promise<Coverage> {
+  const files: Files = await parsePackages(cobertura.coverage.packages.package, trackLostLines);
 
   const fileList = Object.values(files).map((file) => file.absolute);
   const basePath = `${determineCommonBasePath(fileList)}`;
@@ -63,13 +63,13 @@ function mergeFileEntry(
   };
 }
 
-async function parsePackages(packages?: Package[]): Promise<Files> {
+async function parsePackages(packages?: Package[], trackLostLines = false): Promise<Files> {
   const allFiles: Files = {};
   for await (const p of packages || []) {
     if (!p.classes) {
       continue;
     }
-    const files = await parseClasses(p.classes.class);
+    const files = await parseClasses(p.classes.class, trackLostLines);
 
     for (const [hash, file] of Object.entries(files)) {
       if (allFiles[hash]) {
@@ -86,18 +86,18 @@ async function parsePackages(packages?: Package[]): Promise<Files> {
  * Count lines_covered and lines_valid from a class's lines array.
  * Also returns the sorted array of covered line numbers.
  */
-function countLines(lines: Lines): {
+function countLines(lines: Lines, trackLostLines: boolean): {
   lines_covered: number;
   lines_valid: number;
-  covered_lines: number[];
+  covered_lines: number[] | undefined;
 } {
   const lineArray = lines?.line;
   if (!lineArray) {
-    return { lines_covered: 0, lines_valid: 0, covered_lines: [] };
+    return { lines_covered: 0, lines_valid: 0, covered_lines: trackLostLines ? [] : undefined };
   }
   const arr = Array.isArray(lineArray) ? lineArray : [lineArray];
   let lines_covered = 0;
-  const covered_lines: number[] = [];
+  const covered_lines: number[] | undefined = trackLostLines ? [] : undefined;
   for (const line of arr) {
     const hits = parseInt((line as { '@_hits'?: string })['@_hits'] ?? '0', 10);
     const num = parseInt(
@@ -106,12 +106,14 @@ function countLines(lines: Lines): {
     );
     if (hits > 0) {
       lines_covered += 1;
-      if (num > 0) {
-        covered_lines.push(num);
+      if (trackLostLines && num > 0) {
+        covered_lines!.push(num);
       }
     }
   }
-  covered_lines.sort((a, b) => a - b);
+  if (covered_lines) {
+    covered_lines.sort((a, b) => a - b);
+  }
   return { lines_covered, lines_valid: arr.length, covered_lines };
 }
 
@@ -122,7 +124,7 @@ function countLines(lines: Lines): {
  * @param {Class[]} classes
  * @returns {Promise<Files>}
  */
-async function parseClasses(classes?: Class[]): Promise<Files> {
+async function parseClasses(classes?: Class[], trackLostLines = false): Promise<Files> {
   const byPath = new Map<
     string,
     {
@@ -130,22 +132,23 @@ async function parseClasses(classes?: Class[]): Promise<Files> {
       absolute: string;
       lines_covered: number;
       lines_valid: number;
-      covered_lines: number[];
+      covered_lines: number[] | undefined;
     }
   >();
 
   for (const cls of classes || []) {
     const path = cls['@_filename'];
-    const { lines_covered, lines_valid, covered_lines } = countLines(cls.lines);
+    const { lines_covered, lines_valid, covered_lines } = countLines(cls.lines, trackLostLines);
     const key = path;
 
     if (byPath.has(key)) {
       const cur = byPath.get(key)!;
       cur.lines_covered += lines_covered;
       cur.lines_valid += lines_valid;
-      // Merge covered lines (deduplicate)
-      const merged = new Set<number>([...cur.covered_lines, ...covered_lines]);
-      cur.covered_lines = [...merged].sort((a, b) => a - b);
+      if (trackLostLines) {
+        const merged = new Set<number>([...(cur.covered_lines ?? []), ...(covered_lines ?? [])]);
+        cur.covered_lines = [...merged].sort((a, b) => a - b);
+      }
     } else {
       byPath.set(key, {
         relative: path,

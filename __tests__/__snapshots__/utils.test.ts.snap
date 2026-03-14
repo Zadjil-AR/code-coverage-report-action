@@ -17,7 +17,7 @@ exports[`parse cobertura file with empty lines 1`] = `
     "4fab5baaca5c14d2de62d8d2fceef376ddddcc8e9509d86cfa5643f51b89ce3d": {
       "absolute": "src/main.ts",
       "coverage": 0,
-      "covered_lines": [],
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 0,
       "relative": "src/main.ts",
@@ -35,7 +35,7 @@ exports[`parse cobertura file with empty methods 1`] = `
     "4fab5baaca5c14d2de62d8d2fceef376ddddcc8e9509d86cfa5643f51b89ce3d": {
       "absolute": "src/main.ts",
       "coverage": 0,
-      "covered_lines": [],
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 0,
       "relative": "src/main.ts",
@@ -62,7 +62,7 @@ exports[`parse cobertura project with single file 1`] = `
     "83e0f134b069618626405250ccb3fd4adcc0fdfc7714b387d4aa4f30862f75a7": {
       "absolute": "/foo.php",
       "coverage": 0,
-      "covered_lines": [],
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 0,
       "relative": "/foo.php",
@@ -89,9 +89,7 @@ exports[`parse many sources cobertura file 1`] = `
     "047ca623186112f554f1361a31af7b766b2afbd159064c004bf45123690456fb": {
       "absolute": "/dio/lib/src/progress_stream/browser_progress_stream.dart",
       "coverage": 87.5,
-      "covered_lines": [
-        6, 11, 12, 14, 15, 16, 18, 23, 24, 25, 28, 32, 38, 40,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 14,
       "lines_valid": 16,
       "relative": "dio/lib/src/progress_stream/browser_progress_stream.dart",
@@ -99,23 +97,7 @@ exports[`parse many sources cobertura file 1`] = `
     "0c6ad18173da236b264dd249ca7086db6b1e1b4b51cdfe40077268e3407c45ca": {
       "absolute": "/dio/lib/src/dio_mixin.dart",
       "coverage": 94.12,
-      "covered_lines": [
-        30, 34, 35, 39, 54, 55, 63, 66, 67, 68, 71, 73, 74, 81, 84, 88, 90, 91, 100, 103,
-        106, 109, 111, 120, 123, 130, 131, 140, 144, 146, 149, 151, 160, 163, 170, 178, 182, 187, 194, 197,
-        202, 203, 210, 214, 217, 219, 220, 226, 229, 232, 234, 244, 248, 255, 264, 267, 274, 285, 286, 297,
-        298, 309, 310, 312, 313, 321, 322, 329, 331, 332, 341, 342, 345, 346, 347, 349, 352, 359, 360, 362,
-        363, 364, 365, 366, 367, 368, 370, 376, 379, 380, 381, 382, 383, 384, 385, 386, 387, 388, 391, 392,
-        393, 397, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 413, 414, 415, 419, 422, 423, 425,
-        426, 427, 428, 429, 430, 434, 435, 436, 438, 439, 440, 441, 442, 445, 446, 447, 451, 452, 456, 457,
-        458, 459, 460, 464, 465, 469, 470, 471, 472, 473, 474, 476, 480, 481, 482, 483, 484, 488, 489, 490,
-        491, 492, 495, 496, 497, 498, 499, 502, 504, 508, 510, 512, 513, 514, 515, 516, 519, 521, 522, 523,
-        526, 527, 530, 531, 532, 533, 534, 536, 537, 538, 540, 545, 546, 547, 548, 549, 552, 554, 556, 558,
-        560, 561, 567, 569, 571, 572, 586, 587, 588, 592, 593, 595, 596, 597, 599, 600, 604, 605, 613, 614,
-        615, 616, 619, 620, 621, 623, 624, 625, 626, 629, 634, 635, 645, 650, 651, 653, 655, 656, 657, 658,
-        660, 662, 664, 665, 668, 670, 676, 677, 681, 682, 684, 685, 687, 688, 689, 690, 691, 692, 694, 695,
-        699, 700, 702, 706, 708, 709, 713, 714, 718, 719, 721, 722, 723, 724, 727, 729, 732, 733, 734, 735,
-        736, 737, 740, 741, 753,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 448,
       "lines_valid": 476,
       "relative": "dio/lib/src/dio_mixin.dart",
@@ -123,14 +105,7 @@ exports[`parse many sources cobertura file 1`] = `
     "14883a7ae9f5f2a78e7aa04f885b9071efaa546cd0274aa39808a3bcf5be0eb2": {
       "absolute": "/plugins/http2_adapter/lib/src/connection_manager_imp.dart",
       "coverage": 79.84,
-      "covered_lines": [
-        5, 34, 38, 43, 44, 45, 48, 50, 55, 58, 61, 62, 66, 71, 74, 77, 78, 79, 80, 81,
-        88, 89, 90, 91, 92, 93, 101, 103, 104, 106, 107, 121, 122, 123, 124, 126, 130, 131, 132, 133,
-        134, 140, 145, 146, 148, 151, 152, 153, 154, 158, 159, 160, 162, 163, 164, 166, 170, 171, 172, 176,
-        185, 186, 187, 189, 194, 195, 197, 208, 210, 211, 212, 213, 214, 215, 216, 217, 234, 236, 238, 239,
-        240, 241, 243, 245, 272, 273, 274, 280, 284, 285, 286, 287, 294, 296, 297, 305, 310, 311, 312, 313,
-        314, 316, 319,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 103,
       "lines_valid": 129,
       "relative": "plugins/http2_adapter/lib/src/connection_manager_imp.dart",
@@ -138,9 +113,7 @@ exports[`parse many sources cobertura file 1`] = `
     "19ed92a501e076e02b58f8470e2ec802b079d63e69ecc1c6549809033fa93915": {
       "absolute": "/dio/lib/src/interceptors/imply_content_type.dart",
       "coverage": 100,
-      "covered_lines": [
-        14, 16, 17, 21, 22, 24, 25, 26, 27, 29, 30, 33, 37, 39, 40,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 23,
       "lines_valid": 23,
       "relative": "dio/lib/src/interceptors/imply_content_type.dart",
@@ -148,10 +121,7 @@ exports[`parse many sources cobertura file 1`] = `
     "1bc936903366c430e1c09b039066a0a2cc61123216fa6525316bdaeb1ebfb470": {
       "absolute": "/dio/lib/src/transformer.dart",
       "coverage": 95,
-      "covered_lines": [
-        32, 36, 37, 38, 39, 42, 43, 44, 46, 49, 53, 54, 55, 56, 59, 60, 61, 64, 67, 68,
-        69, 71, 72, 73, 74, 75,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 38,
       "lines_valid": 40,
       "relative": "dio/lib/src/transformer.dart",
@@ -159,12 +129,7 @@ exports[`parse many sources cobertura file 1`] = `
     "23beed8928f09196a04e4a994b43025e1dd4d4626743062507a0cc7af2f30050": {
       "absolute": "/dio/lib/src/utils.dart",
       "coverage": 89.31,
-      "covered_lines": [
-        24, 25, 26, 27, 28, 29, 31, 37, 47, 54, 55, 59, 63, 64, 65, 66, 68, 69, 71, 73,
-        74, 76, 78, 81, 82, 83, 85, 86, 87, 88, 89, 93, 94, 95, 100, 102, 103, 104, 105, 107,
-        108, 109, 112, 114, 115, 116, 117, 119, 120, 121, 124, 126, 127, 128, 130, 131, 132, 133, 134, 135,
-        136, 137, 138, 139, 141, 143, 145, 146, 147, 148, 150, 151, 153, 154, 157, 159,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 117,
       "lines_valid": 131,
       "relative": "dio/lib/src/utils.dart",
@@ -172,9 +137,7 @@ exports[`parse many sources cobertura file 1`] = `
     "36e5849f5b7b10173ab2520c83ba8553e1ab380fe7d50d42ddb454766f0b2372": {
       "absolute": "/dio/lib/src/adapter.dart",
       "coverage": 96.67,
-      "covered_lines": [
-        58, 66, 67, 69, 76, 77, 78, 80, 87, 88, 90, 91, 97, 103, 104, 115, 118, 123, 124,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 29,
       "lines_valid": 30,
       "relative": "dio/lib/src/adapter.dart",
@@ -182,9 +145,7 @@ exports[`parse many sources cobertura file 1`] = `
     "38ef083699810a7e351573e0004d595497f4ad4e8dbe150fb56713caa1c87859": {
       "absolute": "/dio/lib/src/multipart_file/io_multipart_file.dart",
       "coverage": 85.71,
-      "covered_lines": [
-        9, 16, 17, 18, 19, 27, 34, 35, 36, 37, 45, 46,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 12,
       "lines_valid": 14,
       "relative": "dio/lib/src/multipart_file/io_multipart_file.dart",
@@ -192,12 +153,7 @@ exports[`parse many sources cobertura file 1`] = `
     "3d72fdcc8fdb85f7e75f82acdcbf3cbadce77a6e353446ccd7c2b7799508f3f0": {
       "absolute": "/dio/lib/src/dio/dio_for_native.dart",
       "coverage": 91.3,
-      "covered_lines": [
-        15, 21, 22, 23, 27, 39, 43, 46, 53, 54, 55, 56, 58, 59, 64, 65, 66, 68, 70, 76,
-        78, 79, 80, 81, 82, 83, 93, 98, 101, 105, 108, 114, 117, 122, 126, 127, 128, 134, 135, 136,
-        138, 140, 141, 143, 144, 146, 148, 150, 151, 152, 155, 156, 161, 165, 166, 173, 175, 177, 178, 184,
-        185, 186, 188,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 63,
       "lines_valid": 69,
       "relative": "dio/lib/src/dio/dio_for_native.dart",
@@ -205,11 +161,7 @@ exports[`parse many sources cobertura file 1`] = `
     "42f1191f14a8444ed7b9466fd24d9a42c4222d1cc628b6dfa48db33f931a2a40": {
       "absolute": "/dio/lib/src/dio_exception.dart",
       "coverage": 65.35,
-      "covered_lines": [
-        14, 40, 69, 76, 79, 80, 82, 87, 88, 92, 95, 100, 101, 105, 108, 110, 112, 116, 121, 128,
-        133, 134, 138, 141, 143, 145, 149, 157, 162, 163, 171, 176, 177, 178, 183, 209, 217, 218, 219, 220,
-        222, 223, 225, 238, 240, 243, 245, 246, 249, 251, 252, 261, 263, 267, 268, 270, 273, 278,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 83,
       "lines_valid": 127,
       "relative": "dio/lib/src/dio_exception.dart",
@@ -217,9 +169,7 @@ exports[`parse many sources cobertura file 1`] = `
     "481f5993a7795ed1ee31f808d11a579a48fd60d698e8ca13f85dcb3acff5d421": {
       "absolute": "/dio/lib/src/dio.dart",
       "coverage": 25,
-      "covered_lines": [
-        39,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 1,
       "lines_valid": 4,
       "relative": "dio/lib/src/dio.dart",
@@ -227,9 +177,7 @@ exports[`parse many sources cobertura file 1`] = `
     "541cdb8fb7046c948680968839906d9a3cc42dc00295af96ac22b8ce208a3364": {
       "absolute": "/dio/lib/src/multipart_file/browser_multipart_file.dart",
       "coverage": 20,
-      "covered_lines": [
-        3,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 1,
       "lines_valid": 5,
       "relative": "dio/lib/src/multipart_file/browser_multipart_file.dart",
@@ -237,10 +185,7 @@ exports[`parse many sources cobertura file 1`] = `
     "564bd06f55902376a964cb9b191fff482b158dc781fd9973cc6c9f1e7dfa234c": {
       "absolute": "/dio/lib/src/transformers/sync_transformer.dart",
       "coverage": 87.72,
-      "covered_lines": [
-        24, 32, 33, 34, 35, 36, 37, 38, 39, 50, 52, 54, 55, 59, 61, 62, 65, 66, 69, 70,
-        73, 74, 77, 78, 81, 84, 89, 90, 96, 97, 99, 101, 102,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 50,
       "lines_valid": 57,
       "relative": "dio/lib/src/transformers/sync_transformer.dart",
@@ -248,14 +193,7 @@ exports[`parse many sources cobertura file 1`] = `
     "5a9acdf2bac512a4da993283844d0f209fea62af98db725927357f609cf379e5": {
       "absolute": "/dio/lib/src/adapters/browser_adapter.dart",
       "coverage": 75,
-      "covered_lines": [
-        18, 22, 34, 39, 40, 41, 42, 45, 49, 52, 53, 54, 55, 57, 59, 61, 65, 69, 70, 71,
-        74, 75, 76, 77, 79, 82, 86, 88, 89, 90, 94, 95, 96, 97, 98, 100, 102, 122, 141, 143,
-        144, 145, 147, 156, 167, 168, 169, 170, 171, 173, 174, 175, 177, 179, 181, 182, 183, 193, 194, 195,
-        198, 199, 203, 204, 205, 206, 207, 209, 210, 213, 214, 218, 219, 220, 224, 226, 228, 229, 230, 233,
-        234, 238, 242, 243, 244, 247, 251, 253, 254, 256, 258, 260, 261, 263, 269, 271, 276, 281, 282, 283,
-        285, 286, 287, 288, 291, 292, 294, 296, 297, 298, 299,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 111,
       "lines_valid": 148,
       "relative": "dio/lib/src/adapters/browser_adapter.dart",
@@ -263,9 +201,7 @@ exports[`parse many sources cobertura file 1`] = `
     "5c02d69a080def64961e419dc56085a6c0c37a20f4920c3df03825568638348f": {
       "absolute": "/dio/lib/src/cancel_token.dart",
       "coverage": 91.3,
-      "covered_lines": [
-        13, 22, 31, 34, 37, 38, 39, 41, 43, 44, 46,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 21,
       "lines_valid": 23,
       "relative": "dio/lib/src/cancel_token.dart",
@@ -273,7 +209,7 @@ exports[`parse many sources cobertura file 1`] = `
     "600ff1af86377733993e06911053a318543338f01071f6521084d6aee67bfc8e": {
       "absolute": "/dio/lib/src/compute/compute_web.dart",
       "coverage": 0,
-      "covered_lines": [],
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 4,
       "relative": "dio/lib/src/compute/compute_web.dart",
@@ -281,9 +217,7 @@ exports[`parse many sources cobertura file 1`] = `
     "6a51f36d7f3103636a7a55e31fe9bd5deba595d8d220ef55d229c84a2fdf8daa": {
       "absolute": "/dio/lib/src/dio/dio_for_browser.dart",
       "coverage": 57.14,
-      "covered_lines": [
-        10, 16, 17, 19,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 4,
       "lines_valid": 7,
       "relative": "dio/lib/src/dio/dio_for_browser.dart",
@@ -291,13 +225,7 @@ exports[`parse many sources cobertura file 1`] = `
     "6b4fbab3f519f98ba0e68fb1039f0069ba2f0fa144c8262ab369e8caf6618956": {
       "absolute": "/dio/lib/src/adapters/io_adapter.dart",
       "coverage": 65.12,
-      "covered_lines": [
-        35, 62, 63, 68, 73, 74, 80, 81, 82, 84, 89, 90, 92, 94, 95, 96, 98, 99, 106, 109,
-        112, 114, 117, 121, 122, 139, 141, 146, 147, 148, 150, 152, 153, 154, 155, 157, 158, 159, 169, 170,
-        171, 172, 174, 175, 176, 183, 185, 186, 187, 188, 189, 194, 196, 201, 202, 203, 205, 206, 207, 210,
-        211, 212, 213, 214, 216, 218, 219, 221, 222, 224, 226, 229, 230, 231, 232, 233, 235, 236, 237, 239,
-        241, 242,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 112,
       "lines_valid": 172,
       "relative": "dio/lib/src/adapters/io_adapter.dart",
@@ -305,9 +233,7 @@ exports[`parse many sources cobertura file 1`] = `
     "6d76f2b15fffdcddc665cd44c6ce46c1b5ec262589db204491c08900c6f65d74": {
       "absolute": "/dio/lib/src/parameter.dart",
       "coverage": 10,
-      "covered_lines": [
-        6, 21,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 2,
       "lines_valid": 20,
       "relative": "dio/lib/src/parameter.dart",
@@ -315,9 +241,7 @@ exports[`parse many sources cobertura file 1`] = `
     "72ad978e4435692d5fa9db4ca4ba22f30bbd21e84a0cb5871364b2cd1d83c444": {
       "absolute": "/plugins/http2_adapter/lib/src/connection_manager.dart",
       "coverage": 100,
-      "covered_lines": [
-        8, 14, 34, 35,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 4,
       "lines_valid": 4,
       "relative": "plugins/http2_adapter/lib/src/connection_manager.dart",
@@ -325,12 +249,7 @@ exports[`parse many sources cobertura file 1`] = `
     "75721fcf29fb9a5e9ed2c1c29d142fbc6ae140442a972e3ca004701fc42f6f55": {
       "absolute": "/dio/lib/src/response/response_stream_handler.dart",
       "coverage": 99.06,
-      "covered_lines": [
-        15, 20, 21, 22, 24, 25, 26, 27, 30, 31, 34, 35, 36, 37, 38, 39, 40, 41, 43, 44,
-        45, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 64, 65, 67, 68, 69, 71, 72,
-        73, 74, 75, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 91, 92, 94, 95, 96, 97, 98,
-        99, 102, 103, 104, 105, 107,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 105,
       "lines_valid": 106,
       "relative": "dio/lib/src/response/response_stream_handler.dart",
@@ -338,9 +257,7 @@ exports[`parse many sources cobertura file 1`] = `
     "77cfbfe91383ace40cba72c4f98274c52526e91278bfbbe6b558db359fd2a917": {
       "absolute": "/dio/lib/src/transformers/background_transformer.dart",
       "coverage": 81.82,
-      "covered_lines": [
-        12, 15, 19, 20, 25,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 9,
       "lines_valid": 11,
       "relative": "dio/lib/src/transformers/background_transformer.dart",
@@ -348,11 +265,7 @@ exports[`parse many sources cobertura file 1`] = `
     "7bfe2d3a657442412d5b511988b66de6da6a6a8ffacd41fa42c0e7bc3bf9ae28": {
       "absolute": "/dio/lib/src/headers.dart",
       "coverage": 91.01,
-      "covered_lines": [
-        10, 12, 15, 18, 19, 20, 42, 46, 47, 54, 55, 56, 59, 60, 62, 63, 65, 69, 70, 71,
-        72, 74, 75, 79, 80, 83, 84, 85, 87, 89, 92, 93, 94, 97, 98, 101, 102, 106, 107, 116,
-        117, 118, 120, 122, 123, 124, 125, 126, 127, 129, 130, 131,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 81,
       "lines_valid": 89,
       "relative": "dio/lib/src/headers.dart",
@@ -360,9 +273,7 @@ exports[`parse many sources cobertura file 1`] = `
     "823e46b07c6e8b66665bb99d7df810346c201c2849ec57a543ebdff70865c2b0": {
       "absolute": "/dio/lib/src/redirect_record.dart",
       "coverage": 22.22,
-      "covered_lines": [
-        4, 18,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 2,
       "lines_valid": 9,
       "relative": "dio/lib/src/redirect_record.dart",
@@ -370,14 +281,7 @@ exports[`parse many sources cobertura file 1`] = `
     "88b482500f062794ba23cf64c32c15eb4fdc2bf09bbe6408278db49aa2115cb0": {
       "absolute": "/dio/lib/src/form_data.dart",
       "coverage": 85.63,
-      "covered_lines": [
-        12, 15, 17, 18, 23, 27, 28, 31, 37, 38, 47, 52, 53, 56, 58, 59, 60, 62, 64, 65,
-        70, 76, 77, 80, 83, 86, 89, 94, 95, 96, 102, 103, 104, 105, 106, 107, 109, 110, 111, 113,
-        114, 115, 120, 132, 134, 135, 140, 141, 142, 143, 144, 145, 146, 147, 148, 151, 152, 153, 154, 155,
-        156, 157, 160, 161, 164, 165, 166, 172, 174, 176, 177, 178, 180, 181, 182, 183, 184, 187, 188, 189,
-        190, 191, 192, 194, 195, 196, 197, 198, 200, 201, 204, 205, 206, 208, 211, 212, 213, 214, 215, 221,
-        222,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 149,
       "lines_valid": 174,
       "relative": "dio/lib/src/form_data.dart",
@@ -385,17 +289,7 @@ exports[`parse many sources cobertura file 1`] = `
     "9368f9a0d918c91091418412b3696df8b555783a98d70c8ef89aafefa26bee5f": {
       "absolute": "/dio/lib/src/interceptor.dart",
       "coverage": 97.74,
-      "covered_lines": [
-        15, 23, 25, 26, 30, 31, 32, 46, 47, 48, 49, 50, 59, 63, 64, 65, 66, 67, 68, 69,
-        72, 73, 82, 86, 87, 88, 89, 91, 92, 94, 96, 97, 106, 107, 108, 109, 111, 112, 115, 116,
-        117, 118, 120, 123, 124, 133, 137, 138, 139, 142, 143, 145, 147, 148, 157, 158, 159, 160, 161, 163,
-        164, 167, 168, 169, 170, 171, 172, 175, 176, 179, 180, 181, 182, 183, 185, 186, 204, 207, 211, 212,
-        215, 219, 220, 223, 227, 228, 254, 255, 259, 260, 262, 264, 266, 267, 271, 272, 274, 276, 278, 279,
-        283, 284, 286, 288, 296, 304, 305, 308, 309, 312, 313, 320, 322, 324, 325, 327, 328, 329, 330, 332,
-        333, 335, 336, 337, 338, 340, 342, 346, 347, 348, 349, 351, 353, 356, 357, 358, 362, 368, 369, 381,
-        385, 386, 388, 392, 393, 395, 399, 400, 402, 408, 409, 410, 411, 412, 413, 415, 417, 418, 419, 420,
-        421, 423, 428, 437, 443, 445, 446, 449, 450, 453, 454,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 260,
       "lines_valid": 266,
       "relative": "dio/lib/src/interceptor.dart",
@@ -403,7 +297,7 @@ exports[`parse many sources cobertura file 1`] = `
     "9b8e81419267c84fd0c806645e7194d39487ac94b019bbf33d687c8f344b2f0c": {
       "absolute": "/dio/lib/src/interceptors/log.dart",
       "coverage": 0,
-      "covered_lines": [],
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 56,
       "relative": "dio/lib/src/interceptors/log.dart",
@@ -411,11 +305,7 @@ exports[`parse many sources cobertura file 1`] = `
     "9c973028fea3e83b8af2f6483ee2b029e47b4338835bf9c833fb101f159d7f26": {
       "absolute": "/plugins/cookie_manager/lib/src/cookie_mgr.dart",
       "coverage": 76.67,
-      "covered_lines": [
-        20, 24, 26, 32, 34, 35, 37, 38, 39, 42, 45, 48, 50, 52, 53, 54, 55, 56, 57, 58,
-        60, 61, 62, 63, 73, 75, 105, 106, 107, 111, 112, 113, 114, 115, 118, 120, 124, 127, 128, 129,
-        130, 131, 132, 133, 134, 136,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 46,
       "lines_valid": 60,
       "relative": "plugins/cookie_manager/lib/src/cookie_mgr.dart",
@@ -423,7 +313,7 @@ exports[`parse many sources cobertura file 1`] = `
     "9e16d901ce5a97ec166c02fd6b3c66865517e5ed2d4f98896121000c4b51fad5": {
       "absolute": "/dio/lib/src/compute/compute_io.dart",
       "coverage": 0,
-      "covered_lines": [],
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 53,
       "relative": "dio/lib/src/compute/compute_io.dart",
@@ -431,14 +321,7 @@ exports[`parse many sources cobertura file 1`] = `
     "b04b3368f4cc8b81b57022fc72620989d0e5941136b2fa5411085468ec6a1ccf": {
       "absolute": "/plugins/http2_adapter/lib/src/http2_adapter.dart",
       "coverage": 71.72,
-      "covered_lines": [
-        27, 32, 43, 50, 52, 53, 57, 58, 60, 61, 62, 76, 78, 84, 90, 91, 92, 95, 98, 99,
-        101, 102, 103, 104, 105, 109, 110, 111, 113, 114, 116, 118, 120, 124, 134, 135, 136, 140, 141, 142,
-        143, 144, 158, 160, 161, 162, 167, 170, 171, 172, 173, 174, 175, 176, 179, 181, 182, 183, 185, 186,
-        187, 189, 191, 192, 193, 216, 217, 218, 223, 224, 225, 227, 229, 230, 231, 232, 243, 250, 252, 253,
-        254, 256, 260, 261, 262, 264, 271, 272, 274, 276, 277, 278, 279, 280, 285, 287, 288, 289, 292, 294,
-        296, 301, 313, 316,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 104,
       "lines_valid": 145,
       "relative": "plugins/http2_adapter/lib/src/http2_adapter.dart",
@@ -446,19 +329,7 @@ exports[`parse many sources cobertura file 1`] = `
     "bed0ea39c9af0b71c65fb305e8c68236e0292cad32dd6693fe8092aefcdfb6a7": {
       "absolute": "/dio/lib/src/options.dart",
       "coverage": 92.93,
-      "covered_lines": [
-        51, 75, 98, 99, 101, 102, 103, 109, 110, 117, 125, 128, 129, 132, 133, 138, 148, 159, 160, 161,
-        162, 165, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 201, 202, 203, 204, 205,
-        206, 207, 214, 231, 233, 234, 237, 256, 257, 261, 263, 264, 270, 274, 275, 276, 277, 280, 281, 282,
-        283, 285, 286, 287, 288, 289, 290, 291, 295, 305, 306, 307, 308, 311, 312, 313, 315, 316, 318, 319,
-        320, 323, 324, 328, 331, 332, 333, 334, 335, 336, 337, 339, 340, 341, 343, 345, 346, 347, 351, 353,
-        381, 403, 482, 509, 510, 511, 512, 513, 514, 517, 545, 546, 547, 550, 554, 555, 556, 557, 558, 559,
-        560, 561, 562, 563, 564, 565, 566, 567, 568, 569, 570, 572, 573, 574, 575, 576, 577, 578, 579, 583,
-        584, 586, 589, 590, 600, 601, 602, 603, 604, 605, 606, 609, 610, 611, 614, 615, 635, 636, 637, 640,
-        657, 659, 663, 664, 669, 670, 671, 673, 676, 684, 685, 687, 689, 691, 692, 694, 695, 696, 697, 702,
-        704, 707, 708, 711, 714, 717, 718, 721, 722, 726, 728, 729, 730, 731, 732, 734, 736, 738, 739, 740,
-        741, 742, 743, 744, 747,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 289,
       "lines_valid": 311,
       "relative": "dio/lib/src/options.dart",
@@ -466,10 +337,7 @@ exports[`parse many sources cobertura file 1`] = `
     "ddbf97444073e26a3250d434e7cfa9dc48025582df20fd874ccc4a64218e9310": {
       "absolute": "/dio/lib/src/multipart_file.dart",
       "coverage": 53.23,
-      "covered_lines": [
-        42, 49, 50, 56, 62, 63, 64, 77, 83, 84, 85, 88, 90, 91, 115, 125, 131, 138, 144, 153,
-        154, 155, 161, 162, 168, 169, 170, 171, 172, 173, 174,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 33,
       "lines_valid": 62,
       "relative": "dio/lib/src/multipart_file.dart",
@@ -477,9 +345,7 @@ exports[`parse many sources cobertura file 1`] = `
     "e3a57d31614a71527998b4e2ba5982de926ac6c65fe373dafd992eda9414d82a": {
       "absolute": "/dio/lib/src/progress_stream/io_progress_stream.dart",
       "coverage": 78.95,
-      "covered_lines": [
-        6, 11, 12, 13, 14, 17, 23, 24, 25, 32, 33, 35, 38, 39, 40,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 15,
       "lines_valid": 19,
       "relative": "dio/lib/src/progress_stream/io_progress_stream.dart",
@@ -487,11 +353,7 @@ exports[`parse many sources cobertura file 1`] = `
     "e669e973c3e9889b001c40186b78936ad023f8137420c627e0aee9da9fee0fd1": {
       "absolute": "/plugins/compatibility_layer/lib/src/conversion_layer_adapter.dart",
       "coverage": 81.16,
-      "covered_lines": [
-        19, 24, 25, 30, 31, 32, 33, 34, 35, 36, 37, 38, 41, 43, 44, 46, 50, 51, 52, 54,
-        58, 59, 60, 63, 65, 68, 71, 72, 73, 75, 76, 77, 78, 82, 84, 85, 86, 87, 92, 93,
-        94, 95, 96,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 56,
       "lines_valid": 69,
       "relative": "plugins/compatibility_layer/lib/src/conversion_layer_adapter.dart",
@@ -499,10 +361,7 @@ exports[`parse many sources cobertura file 1`] = `
     "f651b86290b3eb324dfe2e820609f237ae671baa95840cfbdbfb8c51581c552a": {
       "absolute": "/plugins/native_dio_adapter/lib/src/conversion_layer_adapter.dart",
       "coverage": 92.5,
-      "covered_lines": [
-        15, 19, 25, 26, 27, 30, 31, 33, 37, 38, 39, 42, 43, 44, 45, 46, 47, 53, 54, 57,
-        58, 59, 60, 63, 64, 65, 66, 69, 70, 77, 78, 84, 85, 86, 87, 88, 89,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 37,
       "lines_valid": 40,
       "relative": "plugins/native_dio_adapter/lib/src/conversion_layer_adapter.dart",
@@ -510,9 +369,7 @@ exports[`parse many sources cobertura file 1`] = `
     "f6ac8f3cb3e35a127a238c408bfe1e1b2759f57a9f1944ed0b6bdb9b1c3f3bd7": {
       "absolute": "/dio/lib/src/response.dart",
       "coverage": 52.94,
-      "covered_lines": [
-        13, 23, 24, 30, 60, 61, 75,
-      ],
+      "covered_lines": undefined,
       "lines_covered": 9,
       "lines_valid": 17,
       "relative": "dio/lib/src/response.dart",
