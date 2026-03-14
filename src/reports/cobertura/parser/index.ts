@@ -106,8 +106,8 @@ function countLines(lines: Lines, trackLostLines: boolean): {
     );
     if (hits > 0) {
       lines_covered += 1;
-      if (trackLostLines && num > 0) {
-        covered_lines!.push(num);
+      if (covered_lines !== undefined && num > 0) {
+        covered_lines.push(num);
       }
     }
   }

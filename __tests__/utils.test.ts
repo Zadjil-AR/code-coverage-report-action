@@ -381,6 +381,60 @@ test('parse many sources cobertura file', async () => {
   expect(ret).toMatchSnapshot()
 })
 
+test('parse clover with trackLostLines=true captures covered_lines', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover.xml', true)
+  expect(ret).not.toBeNull()
+  for (const file of Object.values(ret?.files ?? {})) {
+    expect(file).toHaveProperty('covered_lines')
+    expect(Array.isArray(file.covered_lines)).toBe(true)
+  }
+})
+
+test('parse clover with package that has no files skips that package', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-package-no-files.xml', true)
+  expect(ret).not.toBeNull()
+  // Only the package with files contributes — the empty package is skipped
+  expect(Object.keys(ret?.files ?? {})).toHaveLength(1)
+  const file = Object.values(ret?.files ?? {})[0]
+  expect(file.covered_lines).toEqual([1, 2, 4])
+})
+
+test('parse clover file with no line elements and trackLostLines=true returns empty covered_lines', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-file-no-lines.xml', true)
+  expect(ret).not.toBeNull()
+  const file = Object.values(ret?.files ?? {})[0]
+  expect(file.covered_lines).toEqual([])
+})
+
+test('parse cobertura with multiple packages sharing same file merges entries', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/cobertura-two-packages-same-file.xml')
+  expect(ret).not.toBeNull()
+  // Both packages map to src/same.ts — there should be exactly one merged entry
+  expect(Object.keys(ret?.files ?? {})).toHaveLength(1)
+  const file = Object.values(ret?.files ?? {})[0]
+  expect(file.lines_covered).toBe(2)
+  expect(file.lines_valid).toBe(4)
+})
+
+test('parse cobertura with multiple packages sharing same file and trackLostLines=true merges covered_lines', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/cobertura-two-packages-same-file.xml', true)
+  expect(ret).not.toBeNull()
+  const file = Object.values(ret?.files ?? {})[0]
+  // lines 1 and 3 are covered across the two packages
+  expect(file.covered_lines).toEqual([1, 3])
+})
+
+test('parse cobertura with two classes sharing same filename in one package and trackLostLines=true merges covered_lines', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/cobertura-two-classes-same-file.xml', true)
+  expect(ret).not.toBeNull()
+  expect(Object.keys(ret?.files ?? {})).toHaveLength(1)
+  const file = Object.values(ret?.files ?? {})[0]
+  expect(file.lines_covered).toBe(2)
+  expect(file.lines_valid).toBe(4)
+  // lines 1 and 3 are covered across the two classes
+  expect(file.covered_lines).toEqual([1, 3])
+})
+
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
