@@ -118,7 +118,9 @@ async function parseFiles(
  * Extract covered line numbers from Clover line elements.
  * A line is covered when its `count` attribute is > 0.
  */
-function extractCloverCoveredLines(lineElements: File['line']): number[] {
+export function extractCloverCoveredLines(
+  lineElements: File['line']
+): number[] {
   if (!lineElements) {
     return [];
   }

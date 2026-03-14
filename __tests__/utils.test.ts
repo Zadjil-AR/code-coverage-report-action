@@ -19,6 +19,7 @@ import {
   writeCoveredLinesFile,
   readCoveredLinesFile
 } from '../src/utils'
+import { extractCloverCoveredLines } from '../src/reports/clover/parser'
 import {
   expect,
   test,
@@ -388,6 +389,7 @@ test('parse clover with trackLostLines=true captures covered_lines', async () =>
     expect(file).toHaveProperty('covered_lines')
     expect(Array.isArray(file.covered_lines)).toBe(true)
   }
+  expect(ret).toMatchSnapshot()
 })
 
 test('parse clover with package that has no files skips that package', async () => {
@@ -404,6 +406,42 @@ test('parse clover file with no line elements and trackLostLines=true returns em
   expect(ret).not.toBeNull()
   const file = Object.values(ret?.files ?? {})[0]
   expect(file.covered_lines).toEqual([])
+})
+
+test('parse clover with single line element and trackLostLines=true normalises to array', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-single-line.xml', true)
+  expect(ret).not.toBeNull()
+  const file = Object.values(ret?.files ?? {})[0]
+  // XML parser returns a single object (not an array) for one <line> — must be normalised
+  expect(file.covered_lines).toEqual([5])
+  expect(ret).toMatchSnapshot()
+})
+
+test('parse clover file with no path attribute falls back to name', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-no-path.xml', true)
+  expect(ret).not.toBeNull()
+  expect(Object.keys(ret?.files ?? {})).toHaveLength(1)
+  const file = Object.values(ret?.files ?? {})[0]
+  // Relative path should be set from the name attribute since path is absent
+  expect(file.relative).toBe('src/nopath.ts')
+  expect(file.covered_lines).toEqual([1, 2])
+  expect(ret).toMatchSnapshot()
+})
+
+test('parse clover with edge case lines skips invalid line numbers and missing count', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-edge-cases.xml', true)
+  expect(ret).not.toBeNull()
+  const file = Object.values(ret?.files ?? {})[0]
+  // Only line 1 is valid (count > 0 and num > 0); num=0 with count>0 and missing count are excluded
+  expect(file.covered_lines).toEqual([1])
+  expect(ret).toMatchSnapshot()
+})
+
+test('extractCloverCoveredLines returns empty array for empty array input', () => {
+  // Covers the arr.length === 0 branch — this path is defensive and cannot be reached
+  // through XML parsing (XML parser returns undefined for missing elements), so it is
+  // tested directly via the exported function.
+  expect(extractCloverCoveredLines([])).toEqual([])
 })
 
 test('parse cobertura with multiple packages sharing same file merges entries', async () => {

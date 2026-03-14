@@ -1,5 +1,158 @@
 // Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
+exports[`parse clover file with no path attribute falls back to name 1`] = `
+{
+  "basePath": "src/nopath.ts",
+  "coverage": 66.67,
+  "files": {
+    "188dec7f5b5cbb125e8f7f8fab83d5f417e415582faf0c54cade8e9d6f911b20": {
+      "absolute": "src/nopath.ts",
+      "coverage": 66.67,
+      "covered_lines": [
+        1, 2,
+      ],
+      "lines_covered": 2,
+      "lines_valid": 3,
+      "relative": "src/nopath.ts",
+    },
+  },
+  "timestamp": 1715832361306,
+}
+`;
+
+exports[`parse clover with edge case lines skips invalid line numbers and missing count 1`] = `
+{
+  "basePath": "/project/edge.ts",
+  "coverage": 33.33,
+  "files": {
+    "c8581ed45f58629d3abbe0323c48c3990efdd10fb0a7eab929331c38314dd650": {
+      "absolute": "/project/edge.ts",
+      "coverage": 33.33,
+      "covered_lines": [
+        1,
+      ],
+      "lines_covered": 1,
+      "lines_valid": 3,
+      "relative": "/project/edge.ts",
+    },
+  },
+  "timestamp": 1715832361306,
+}
+`;
+
+exports[`parse clover with single line element and trackLostLines=true normalises to array 1`] = `
+{
+  "basePath": "/project/single.ts",
+  "coverage": 100,
+  "files": {
+    "f0aca69def3950bdd9ba1ad361b0227b3167c799668147b27d8956e358ec5c1f": {
+      "absolute": "/project/single.ts",
+      "coverage": 100,
+      "covered_lines": [
+        5,
+      ],
+      "lines_covered": 1,
+      "lines_valid": 1,
+      "relative": "/project/single.ts",
+    },
+  },
+  "timestamp": 1715832361306,
+}
+`;
+
+exports[`parse clover with trackLostLines=true captures covered_lines 1`] = `
+{
+  "basePath": "/usr/src/code-coverage-report-action/src",
+  "coverage": 50.51,
+  "files": {
+    "16e49737876bdcd7a88d16a1a4d38cc5c8048ea69c7152cc1b1c43a56db22fc4": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/clover/types/index.ts",
+      "coverage": 100,
+      "covered_lines": [
+        43, 44, 69, 70, 71, 74, 75, 76, 77,
+      ],
+      "lines_covered": 18,
+      "lines_valid": 18,
+      "relative": "reports/clover/types/index.ts",
+    },
+    "25804f0e27524e107e3d739dbbeadd8025fc3aaa2cc3ce3ca481569d20da1244": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/clover/parser/index.ts",
+      "coverage": 84.31,
+      "covered_lines": [
+        3, 10, 11, 13, 14, 15, 17, 21, 22, 23, 25, 27, 28, 43, 44, 45, 48, 50, 52, 62,
+        66, 87, 88, 89, 90, 91, 92, 94, 95, 98, 100,
+      ],
+      "lines_covered": 43,
+      "lines_valid": 51,
+      "relative": "reports/clover/parser/index.ts",
+    },
+    "2c577907984e426e2eb45b05a76679cb2ef45f2a36d0121f823290c32e5f97c4": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/clover/index.ts",
+      "coverage": 100,
+      "covered_lines": [
+        1, 2,
+      ],
+      "lines_covered": 3,
+      "lines_valid": 3,
+      "relative": "reports/clover/index.ts",
+    },
+    "4194a7efb6c90fc1c5477f9aa8ac1c439513c816a92ce5ec4b52bc9633cecba4": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/cobertura/types/index.ts",
+      "coverage": 100,
+      "covered_lines": [
+        62, 63, 64, 77, 78, 79, 80, 81,
+      ],
+      "lines_covered": 14,
+      "lines_valid": 14,
+      "relative": "reports/cobertura/types/index.ts",
+    },
+    "4db0f25752a35fb4c0f500272e98c9a9a786c50468f32173c77b5755d5d61b4a": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/cobertura/parser/index.ts",
+      "coverage": 13.33,
+      "covered_lines": [
+        2, 10,
+      ],
+      "lines_covered": 2,
+      "lines_valid": 15,
+      "relative": "reports/cobertura/parser/index.ts",
+    },
+    "564c860307257bfac9176f554a35aa858c350a59d75c0dcd0a5d63a480805bd0": {
+      "absolute": "/usr/src/code-coverage-report-action/src/main.ts",
+      "coverage": 0,
+      "covered_lines": [],
+      "lines_covered": 0,
+      "lines_valid": 153,
+      "relative": "main.ts",
+    },
+    "628976b76dd72ce208ab27d714c9761c0d61a2cceb5f4550f9f0e41b0f4ba944": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/cobertura/index.ts",
+      "coverage": 66.67,
+      "covered_lines": [
+        1, 2,
+      ],
+      "lines_covered": 2,
+      "lines_valid": 3,
+      "relative": "reports/cobertura/index.ts",
+    },
+    "7583809507a13391057c3aee722e422d50d961a87e2a3dbf05ea492dc6465c94": {
+      "absolute": "/usr/src/code-coverage-report-action/src/utils.ts",
+      "coverage": 70.94,
+      "covered_lines": [
+        1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 14, 21, 22, 23, 24, 27, 35, 36, 37, 40,
+        42, 45, 46, 48, 63, 165, 194, 197, 198, 199, 202, 204, 207, 209, 212, 213, 214, 219, 222, 225,
+        226, 234, 235, 238, 239, 249, 254, 255, 257, 258, 259, 260, 261, 264, 265, 266, 267, 268, 269, 273,
+        283, 293, 299, 306, 308, 311, 323, 324, 325, 328, 329, 331, 332, 333, 336, 339, 344, 347, 351, 353,
+        355, 356, 360, 364, 369, 372, 375, 392, 397, 402, 410, 411, 412, 423, 424, 425, 427,
+      ],
+      "lines_covered": 166,
+      "lines_valid": 234,
+      "relative": "utils.ts",
+    },
+  },
+  "timestamp": 1715832361306,
+}
+`;
+
 exports[`parse cobertura file with empty classes 1`] = `
 {
   "basePath": "",
