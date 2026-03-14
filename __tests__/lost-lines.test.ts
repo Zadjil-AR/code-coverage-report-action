@@ -7,6 +7,7 @@ import {
   computeLostLinesReport,
   coveredLinesToRanges,
   rangesToLines,
+  getGitDiff,
   FileDiff,
   LostLinePair
 } from '../src/lost-lines'
@@ -483,6 +484,8 @@ describe('computeLostLinesReport', () => {
     expect(report.overallBaseCoveredCount).toBe(5)
     expect(report.overallLostCount).toBe(1)
     expect(report.overallLostPercentage).toBe(20)
+    expect(report.previewRanges).toHaveLength(1)
+    expect(report.previewRanges[0]).toEqual({ file: 'src/a.ts', start: 2, end: 2 })
   })
 
   test('returns 0% overall when base has no covered lines', () => {
@@ -504,7 +507,6 @@ describe('computeLostLinesReport', () => {
 
     const report = computeLostLinesReport(base, head, diff)
     // Each file has 6 individual ranges; previewRanges should be capped at 5
-    expect(report.previewRanges.length).toBeLessThanOrEqual(5)
     expect(report.previewRanges.length).toBe(5)
   })
 })
@@ -512,8 +514,6 @@ describe('computeLostLinesReport', () => {
 // ---------------------------------------------------------------------------
 // getGitDiff (invalid ref validation)
 // ---------------------------------------------------------------------------
-
-import { getGitDiff } from '../src/lost-lines'
 
 describe('getGitDiff', () => {
   test('throws on invalid ref', async () => {

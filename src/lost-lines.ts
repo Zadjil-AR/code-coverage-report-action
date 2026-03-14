@@ -104,9 +104,9 @@ function parseHunks(lines: string[]): Hunk[] {
     const match = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
     if (match) {
       hunks.push({
-        oldStart: parseInt(match[1], 10),
-        oldCount: match[2] !== undefined ? parseInt(match[2], 10) : 1,
-        newCount: match[4] !== undefined ? parseInt(match[4], 10) : 1
+        oldStart: Number.parseInt(match[1], 10),
+        oldCount: match[2] === undefined ? 1 : Number.parseInt(match[2], 10),
+        newCount: match[4] === undefined ? 1 : Number.parseInt(match[4], 10)
       });
     }
   }

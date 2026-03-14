@@ -483,9 +483,9 @@ test('parse cobertura with two classes sharing same filename in one package and 
   expect(file.covered_lines).toEqual([1, 3])
 })
 
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 // ---------------------------------------------------------------------------
 // buildCoveredLinesMap
