@@ -444,6 +444,16 @@ test('extractCloverCoveredLines returns empty array for empty array input', () =
   expect(extractCloverCoveredLines([])).toEqual([])
 })
 
+test('extractCloverCoveredLines excludes lines with missing num attribute', () => {
+  // Covers the @_num ?? '0' fallback branch: when @_num is absent num defaults to 0
+  // which fails the num > 0 guard and is therefore excluded from covered_lines.
+  const result = extractCloverCoveredLines([
+    { '@_count': '5' } as any,       // no num → num = 0 → excluded
+    { '@_count': '1', '@_num': '7' } as any  // has num → included
+  ])
+  expect(result).toEqual([7])
+})
+
 test('parse cobertura with multiple packages sharing same file merges entries', async () => {
   const ret = await parseCoverage(__dirname + '/fixtures/cobertura-two-packages-same-file.xml')
   expect(ret).not.toBeNull()

@@ -2,29 +2,59 @@
 
 ## PR Summary
 
-This feature adds a `track_lost_lines` input flag that, when enabled, tracks which
-previously-covered source lines are no longer covered after a PR's changes. The full
-feature includes:
+This PR adds an optional "lost covered lines" regression report to the action, surfacing
+previously-covered source lines that are no longer covered after a PR's changes.
 
-- **`track_lost_lines` input flag** — boolean, default `false`; gates the entire feature
-  so there is zero overhead when disabled.
-- **`covered_lines` capture** — Cobertura and Clover parsers are updated to populate an
-  optional `covered_lines: number[]` field per file only when the flag is on.
-- **`coverage-lines.json` artifact** — covered-line arrays are serialized and uploaded as
-  an artifact from the base-branch run for later comparison.
-- **`git diff` parsing** — line movements across the PR are resolved via hunk parsing so
-  base line numbers are mapped to their new positions in the PR head.
-- **Per-file and overall lost-lines report** — `computeLostLinesReport` produces a
-  `LostLinesReport` with per-file `FileLostLines` entries and aggregate counts/percentages.
-- **Template changes** — the `with-base-coverage.hbs` template renders a "Lost Lines"
-  column in existing coverage tables and a collapsible details block (shown only when
-  `overallLostCount > 0`).
-- **PR-head artifact upload** — covered-line data is also uploaded from the PR head run
-  to support chained PR comparisons.
-- **Exclude-paths filtering** — `excludePaths` input is applied to the lost-lines
-  calculation so ignored files are excluded from the report.
-- **Renamed-file support** — lost-lines report uses `newPath` (the post-rename path) so
-  file entries match the head-coverage file list correctly.
+### Core feature
+- **`action.yml`** — new `track_lost_lines` boolean input (default `false`); behaviour is
+  unchanged when the flag is not set.
+- **`src/lost-lines.ts`** — full implementation of `git diff` parsing, line-number mapping,
+  and lost-lines computation; renamed/moved files use the head path; `validateGitRef` rejects
+  leading `-` characters to prevent option injection.
+- **`src/utils.ts`** — `parseCoverage` accepts optional `trackLostLines` flag;
+  `writeCoveredLinesFile` / `readCoveredLinesFile` helpers manage the `coverage-lines.json`
+  artifact; `filterCoveredLinesMap` applies `exclude_paths` before comparison.
+- **`src/functions.ts`** — `formatLostCoverage` renders `🔴 <n> lines (<pct>%)`;
+  `buildLostLinesByFile` and updated `buildCoverageRows` / `addOverallRow` inject lost-lines
+  data into the template context.
+
+### Parsers
+- **`src/reports/clover/parser/index.ts`** — `trackLostLines` flag threaded through all
+  internal helpers; `covered_lines` only collected when enabled; single `<line>` element
+  normalised to array; `extractCloverCoveredLines` exported for direct unit testing.
+- **`src/reports/cobertura/parser/index.ts`** — same flag threading; `covered_lines`
+  `undefined` when flag is off; non-null assertion replaced with `covered_lines !== undefined`
+  guard.
+
+### Template
+- **`templates/with-base-coverage.hbs`** — "Lost Lines" column added to per-file and top-dir
+  tables; collapsible details block guarded by `{{#if lost_lines_report.overallLostCount}}`
+  so it only renders when there are actual losses.
+
+### Artifact chaining
+- On `pull_request` / `pull_request_target` events with `track_lost_lines=true`,
+  `coverage-lines.json` is uploaded under the PR head-branch name so subsequent PRs targeting
+  this branch can use it as their base (chained PR support).
+
+### Exclude-paths and rename support
+- `filterCoveredLinesMap()` applies the `exclude_paths` input to the base covered-lines map
+  before the comparison, keeping exclusions consistent across all coverage calculations.
+- Lost-lines report entries use `newPath` (the post-rename path) so they match the
+  head-coverage file list for renamed/moved files.
+
+### Tests and snapshots
+- **`__tests__/number-array-serializer.js`** + **`jest.config.js`** — custom Jest snapshot
+  serializer formats `number[]` arrays with 20 items per line; snapshot file shrank from
+  2 218 → 523 lines (75% reduction).
+- `toMatchSnapshot()` calls added to `parseCoverage` tests with `trackLostLines=true`,
+  verifying `covered_lines` arrays are captured correctly in snapshots.
+- New fixtures: `clover-package-no-files.xml`, `clover-file-no-lines.xml`,
+  `clover-single-line.xml`, `clover-no-path.xml`, `clover-edge-cases.xml`,
+  `cobertura-two-classes-same-file.xml` — cover all new parser paths and edge cases.
+- `extractCloverCoveredLines` exported for direct unit testing; direct tests added for empty
+  input, missing `num` attribute, and missing `count` attribute.
+- Clover parser coverage: branch 86% → 93.22% (+7%), statements/lines 98% → 100%.
+- Cobertura parser coverage: statements/lines/functions 81% → 100%.
 
 ---
 
