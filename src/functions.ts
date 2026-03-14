@@ -42,6 +42,8 @@ export async function run(): Promise<void> {
 
     core.debug(`filename: ${filename}`);
 
+    const { excludePaths, trackLostLines } = getInputs();
+
     switch (process.env.GITHUB_EVENT_NAME) {
       case 'pull_request':
       case 'pull_request_target': {
@@ -51,18 +53,20 @@ export async function run(): Promise<void> {
         core.debug(`artifactPath: ${artifactPath}`);
         let baseCoverage =
           artifactPath !== null
-            ? await parseCoverage(path.join(artifactPath, filename))
+            ? await parseCoverage(
+                path.join(artifactPath, filename),
+                trackLostLines
+              )
             : null;
 
         core.info(`Parsing coverage file: ${filename}...`);
-        let headCoverage = await parseCoverage(filename);
+        let headCoverage = await parseCoverage(filename, trackLostLines);
 
         if (headCoverage === null) {
           core.setFailed(`Unable to process ${filename}`);
           return;
         }
 
-        const { excludePaths, trackLostLines } = getInputs();
         if (excludePaths.length > 0) {
           headCoverage = filterCoverageByExcludePaths(
             headCoverage,
@@ -130,14 +134,12 @@ export async function run(): Promise<void> {
       case 'workflow_dispatch':
         {
           const { GITHUB_REF_NAME = '', GITHUB_WORKFLOW = '' } = process.env;
-          const { trackLostLines } = getInputs();
           const filesToUpload = [filename];
 
           core.info(`Parsing coverage file: ${filename}...`);
-          let headCoverage = await parseCoverage(filename);
+          let headCoverage = await parseCoverage(filename, trackLostLines);
           core.info(`Complete`);
 
-          const { excludePaths } = getInputs();
           if (headCoverage != null && excludePaths.length > 0) {
             headCoverage = filterCoverageByExcludePaths(
               headCoverage,

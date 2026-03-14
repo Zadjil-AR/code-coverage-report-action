@@ -21,10 +21,20 @@ export interface LineRange {
 
 export interface FileLostLines {
   file: string;
+  /** Lost line ranges in base (original) file — for artifact storage */
   lostRanges: LineRange[];
+  /** Lost line ranges in head (current) file — for display */
+  newLostRanges: LineRange[];
   baseCoveredCount: number;
   lostCount: number;
   lostPercentage: number;
+}
+
+/** A single range entry used in the template preview (first 5 ranges). */
+export interface LostRangePreview {
+  file: string;
+  start: number;
+  end: number;
 }
 
 export interface LostLinesReport {
@@ -32,6 +42,8 @@ export interface LostLinesReport {
   overallBaseCoveredCount: number;
   overallLostCount: number;
   overallLostPercentage: number;
+  /** First 5 lost-line ranges across all files (head line numbers), for template rendering. */
+  previewRanges: LostRangePreview[];
 }
 
 export interface Inputs {

@@ -1,6 +1,11 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { FileLostLines, LineRange, LostLinesReport } from './interfaces';
+import {
+  FileLostLines,
+  LineRange,
+  LostLinesReport,
+  LostRangePreview
+} from './interfaces';
 import { roundPercentage } from './utils';
 
 const execFileAsync = promisify(execFile);
@@ -22,8 +27,10 @@ export interface FileDiff {
 /**
  * Validate that a git ref contains only safe characters.
  * Allows alphanumerics, dash, underscore, dot and forward-slash.
+ * Explicitly rejects refs that start with '-' to prevent option injection.
  */
 export function validateGitRef(ref: string): boolean {
+  if (ref.startsWith('-')) return false;
   return /^[a-zA-Z0-9_./-]+$/.test(ref);
 }
 
@@ -163,29 +170,36 @@ export function linesToRanges(lines: number[]): LineRange[] {
   return ranges;
 }
 
+/** A pair of base and head line numbers for a single lost line. */
+export interface LostLinePair {
+  baseLine: number;
+  headLine: number;
+}
+
 /**
  * Determine which base-covered lines are no longer covered in the head.
  * Deleted lines (resolver returns null) are excluded — they are not "lost".
+ * Returns pairs of (baseLine, headLine) so callers can record both positions.
  *
  * @param baseCoveredLines  Covered line numbers in the base file.
  * @param lineResolver      Maps base line → head line (null = deleted).
  * @param headCoveredSet    Set of covered line numbers in the head file.
- * @returns                 Base line numbers that lost coverage.
+ * @returns                 Pairs of (base line, head line) that lost coverage.
  */
 export function computeLostLines(
   baseCoveredLines: number[],
   lineResolver: (oldLine: number) => number | null,
   headCoveredSet: Set<number>
-): number[] {
-  const lost: number[] = [];
+): LostLinePair[] {
+  const lost: LostLinePair[] = [];
 
   for (const baseLine of baseCoveredLines) {
-    const newLine = lineResolver(baseLine);
-    if (newLine === null) {
+    const headLine = lineResolver(baseLine);
+    if (headLine === null) {
       continue; // deleted — not lost
     }
-    if (!headCoveredSet.has(newLine)) {
-      lost.push(baseLine);
+    if (!headCoveredSet.has(headLine)) {
+      lost.push({ baseLine, headLine });
     }
   }
 
@@ -217,6 +231,10 @@ export function rangesToLines(ranges: [number, number][]): number[] {
  * Build the full LostLinesReport by comparing base and head covered lines,
  * guided by the git diff.
  *
+ * The denominator for each file and overall is the count of base covered lines
+ * that were NOT permanently deleted (i.e., resolver returns non-null).
+ * Permanently deleted lines are excluded from both numerator and denominator.
+ *
  * @param baseCoveredLinesMap   relative path → covered line numbers (from base artifact)
  * @param headCoveredLinesMap   relative path → covered line numbers (from head coverage)
  * @param gitDiffMap            Map returned by parseGitDiff()
@@ -237,11 +255,9 @@ export function computeLostLinesReport(
       continue;
     }
 
-    overallBaseCoveredCount += baseCoveredLines.length;
-
     const diffEntry = gitDiffMap.get(filePath);
 
-    // Deleted files: all lines are gone — not counted as lost
+    // Deleted files: all lines are gone — not counted in denominator or numerator
     if (diffEntry?.deleted) {
       continue;
     }
@@ -255,24 +271,33 @@ export function computeLostLinesReport(
     const headLines = headCoveredLinesMap[newPath] ?? [];
     const headCoveredSet = new Set<number>(headLines);
 
-    const lost = computeLostLines(
+    const lostPairs = computeLostLines(
       baseCoveredLines,
       lineResolver,
       headCoveredSet
     );
 
-    overallLostCount += lost.length;
+    // Count only surviving (non-deleted) base lines for the denominator.
+    // Permanently deleted lines are not considered lost and do not inflate the base count.
+    const survivingCount = baseCoveredLines.filter(
+      (l) => lineResolver(l) !== null
+    ).length;
 
-    if (lost.length > 0) {
-      const lostRanges = linesToRanges(lost);
+    overallBaseCoveredCount += survivingCount;
+    overallLostCount += lostPairs.length;
+
+    if (lostPairs.length > 0) {
+      const lostRanges = linesToRanges(lostPairs.map((p) => p.baseLine));
+      const newLostRanges = linesToRanges(lostPairs.map((p) => p.headLine));
       const lostPercentage = roundPercentage(
-        (lost.length / baseCoveredLines.length) * 100
+        (lostPairs.length / survivingCount) * 100
       );
       files.push({
         file: newPath,
         lostRanges,
-        baseCoveredCount: baseCoveredLines.length,
-        lostCount: lost.length,
+        newLostRanges,
+        baseCoveredCount: survivingCount,
+        lostCount: lostPairs.length,
         lostPercentage
       });
     }
@@ -283,10 +308,25 @@ export function computeLostLinesReport(
       ? roundPercentage((overallLostCount / overallBaseCoveredCount) * 100)
       : 0;
 
+  // Build at most 5 preview ranges (head line numbers) across all files for template rendering.
+  const previewRanges: LostRangePreview[] = [];
+  for (const file of files) {
+    for (const range of file.newLostRanges) {
+      if (previewRanges.length >= 5) break;
+      previewRanges.push({
+        file: file.file,
+        start: range.start,
+        end: range.end
+      });
+    }
+    if (previewRanges.length >= 5) break;
+  }
+
   return {
     files,
     overallBaseCoveredCount,
     overallLostCount,
-    overallLostPercentage
+    overallLostPercentage,
+    previewRanges
   };
 }

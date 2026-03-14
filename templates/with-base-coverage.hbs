@@ -62,8 +62,8 @@ _Maximum allowed coverage difference is_ `{{negative_difference_threshold}}`{{#i
 <details>
 <summary>Lost coverage details ({{lost_lines_report.overallLostCount}} lines lost across {{lost_lines_report.files.length}} file(s))</summary>
 
-{{#each lost_lines_report.files}}
-- `{{file}}`: {{#each lostRanges}}{{#unless @first}}, {{/unless}}lines {{start}}–{{end}}{{/each}}
+{{#each lost_lines_report.previewRanges}}
+- `{{file}}`: lines {{start}}–{{end}}
 {{/each}}
 
 </details>

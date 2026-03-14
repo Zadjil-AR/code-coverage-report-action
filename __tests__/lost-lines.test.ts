@@ -7,7 +7,8 @@ import {
   computeLostLinesReport,
   coveredLinesToRanges,
   rangesToLines,
-  FileDiff
+  FileDiff,
+  LostLinePair
 } from '../src/lost-lines'
 import { expect, test, describe } from '@jest/globals'
 
@@ -42,6 +43,12 @@ describe('validateGitRef', () => {
 
   test('rejects empty string', () => {
     expect(validateGitRef('')).toBe(false)
+  })
+
+  test('rejects ref starting with dash (option-injection prevention)', () => {
+    expect(validateGitRef('-n')).toBe(false)
+    expect(validateGitRef('--option')).toBe(false)
+    expect(validateGitRef('-')).toBe(false)
   })
 })
 
@@ -272,10 +279,11 @@ describe('computeLostLines', () => {
     expect(computeLostLines([1, 2, 3], resolve, headSet)).toEqual([])
   })
 
-  test('returns lines no longer covered', () => {
+  test('returns pairs for lines no longer covered', () => {
     const resolve = buildLineResolver([])
     const headSet = new Set([1, 3]) // line 2 is no longer covered
-    expect(computeLostLines([1, 2, 3], resolve, headSet)).toEqual([2])
+    const result: LostLinePair[] = computeLostLines([1, 2, 3], resolve, headSet)
+    expect(result).toEqual([{ baseLine: 2, headLine: 2 }])
   })
 
   test('does not count deleted lines as lost', () => {
@@ -286,12 +294,13 @@ describe('computeLostLines', () => {
     expect(computeLostLines([1, 2, 3], resolve, headSet)).toEqual([])
   })
 
-  test('counts line that moved but is no longer covered', () => {
-    // Line 3 moved to line 2, but not in headSet
+  test('records both base and head line for a moved uncovered line', () => {
+    // Line 3 moved to line 2 (one line deleted before), but is not in headSet
     const resolve = buildLineResolver([{ oldStart: 2, oldCount: 1, newCount: 0 }])
     const headSet = new Set([1]) // line 2 (was line 3) not covered
     // Old lines 1,2,3: line 2 deleted, line 3→2 (not in headSet)
-    expect(computeLostLines([1, 2, 3], resolve, headSet)).toEqual([3])
+    const result: LostLinePair[] = computeLostLines([1, 2, 3], resolve, headSet)
+    expect(result).toEqual([{ baseLine: 3, headLine: 2 }])
   })
 
   test('returns empty when no base covered lines', () => {
@@ -342,6 +351,7 @@ describe('computeLostLinesReport', () => {
     expect(report.overallLostCount).toBe(0)
     expect(report.overallLostPercentage).toBe(0)
     expect(report.files).toHaveLength(0)
+    expect(report.previewRanges).toEqual([])
   })
 
   test('detects lost lines in an unmodified file', () => {
@@ -356,8 +366,15 @@ describe('computeLostLinesReport', () => {
     expect(report.files).toHaveLength(1)
     expect(report.files[0].file).toBe('src/a.ts')
     expect(report.files[0].lostCount).toBe(2)
+    // baseCoveredCount = surviving = 4 (no deletions in unmodified file)
     expect(report.files[0].baseCoveredCount).toBe(4)
     expect(report.files[0].lostRanges).toEqual([{ start: 3, end: 4 }])
+    // head lines = same as base since no diff
+    expect(report.files[0].newLostRanges).toEqual([{ start: 3, end: 4 }])
+    // previewRanges should include this range
+    expect(report.previewRanges).toEqual([
+      { file: 'src/a.ts', start: 3, end: 4 }
+    ])
   })
 
   test('skips deleted files', () => {
@@ -376,7 +393,9 @@ describe('computeLostLinesReport', () => {
 
     const report = computeLostLinesReport(base, head, diff)
     expect(report.overallLostCount).toBe(0)
+    expect(report.overallBaseCoveredCount).toBe(0)
     expect(report.files).toHaveLength(0)
+    expect(report.previewRanges).toEqual([])
   })
 
   test('handles renamed files by looking up head lines via newPath', () => {
@@ -397,6 +416,7 @@ describe('computeLostLinesReport', () => {
     const report = computeLostLinesReport(base, head, diff)
     expect(report.overallLostCount).toBe(2)
     expect(report.files[0].file).toBe('new/foo.ts')
+    expect(report.files[0].newLostRanges).toEqual([{ start: 3, end: 4 }])
   })
 
   test('does not count deleted lines from a modified file as lost', () => {
@@ -416,7 +436,36 @@ describe('computeLostLinesReport', () => {
 
     const report = computeLostLinesReport(base, head, diff)
     // Old lines 3 and 4 were deleted (not lost). Old line 5 → new line 3 (covered).
+    // Surviving = 3 (lines 1,2,5), lost = 0
     expect(report.overallLostCount).toBe(0)
+    expect(report.overallBaseCoveredCount).toBe(3)
+  })
+
+  test('denominator excludes permanently deleted lines within a modified file', () => {
+    // 52 lines base: 50 are in deleted hunks, 1 loses coverage, 1 keeps coverage → 50%
+    const baseLines = Array.from({ length: 52 }, (_, i) => i + 1)
+    const base: Record<string, number[]> = { 'src/a.ts': baseLines }
+    // Lines 1–50 deleted; line 51→1, line 52→2
+    const head: Record<string, number[]> = { 'src/a.ts': [2] } // line 52→2 covered; 51→1 not
+    const diff: Map<string, FileDiff> = new Map([
+      [
+        'src/a.ts',
+        {
+          newPath: 'src/a.ts',
+          hunks: [{ oldStart: 1, oldCount: 50, newCount: 0 }],
+          deleted: false
+        }
+      ]
+    ])
+
+    const report = computeLostLinesReport(base, head, diff)
+    // Surviving = 2 (lines 51,52); lost = 1 (line 51→1 not in headSet)
+    expect(report.overallBaseCoveredCount).toBe(2)
+    expect(report.overallLostCount).toBe(1)
+    expect(report.overallLostPercentage).toBe(50)
+    expect(report.files[0].lostRanges).toEqual([{ start: 51, end: 51 }])
+    expect(report.files[0].newLostRanges).toEqual([{ start: 1, end: 1 }])
+    expect(report.files[0].baseCoveredCount).toBe(2)
   })
 
   test('accounts for overallBaseCoveredCount across multiple files', () => {
@@ -440,6 +489,23 @@ describe('computeLostLinesReport', () => {
     const report = computeLostLinesReport({}, {}, new Map())
     expect(report.overallLostPercentage).toBe(0)
     expect(report.overallBaseCoveredCount).toBe(0)
+    expect(report.previewRanges).toEqual([])
+  })
+
+  test('previewRanges contains at most 5 ranges across all files', () => {
+    // Create a report with 3 files, each with 3 lost ranges
+    const base: Record<string, number[]> = {
+      'src/a.ts': [1, 3, 5, 7, 9, 11],
+      'src/b.ts': [1, 3, 5, 7, 9, 11],
+      'src/c.ts': [1, 3, 5, 7, 9, 11]
+    }
+    const head: Record<string, number[]> = {}
+    const diff: Map<string, FileDiff> = new Map()
+
+    const report = computeLostLinesReport(base, head, diff)
+    // Each file has 6 individual ranges; previewRanges should be capped at 5
+    expect(report.previewRanges.length).toBeLessThanOrEqual(5)
+    expect(report.previewRanges.length).toBe(5)
   })
 })
 
@@ -486,6 +552,7 @@ describe('computeLostLinesReport with empty entries', () => {
     // Only src/b.ts contributes to overallBaseCoveredCount
     expect(report.overallBaseCoveredCount).toBe(2)
     expect(report.overallLostCount).toBe(0)
+    expect(report.previewRanges).toEqual([])
   })
 })
 

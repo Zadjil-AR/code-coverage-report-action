@@ -571,6 +571,38 @@ test('readCoveredLinesFile returns null when file does not exist', async () => {
   expect(result).toBeNull()
 })
 
+test('readCoveredLinesFile returns null and warns when file contains invalid JSON', async () => {
+  const tmpFile = path.join(os.tmpdir(), `coverage-lines-bad-${Date.now()}.json`)
+  await fs.promises.writeFile(tmpFile, 'this is not json', 'utf8')
+  const result = await readCoveredLinesFile(tmpFile)
+  expect(result).toBeNull()
+  await fs.promises.unlink(tmpFile)
+})
+
+test('readCoveredLinesFile returns null and warns when file has unexpected version', async () => {
+  const tmpFile = path.join(os.tmpdir(), `coverage-lines-badver-${Date.now()}.json`)
+  await fs.promises.writeFile(
+    tmpFile,
+    JSON.stringify({ version: 99, files: {} }),
+    'utf8'
+  )
+  const result = await readCoveredLinesFile(tmpFile)
+  expect(result).toBeNull()
+  await fs.promises.unlink(tmpFile)
+})
+
+test('readCoveredLinesFile returns null and warns when files field is missing', async () => {
+  const tmpFile = path.join(os.tmpdir(), `coverage-lines-nofiles-${Date.now()}.json`)
+  await fs.promises.writeFile(
+    tmpFile,
+    JSON.stringify({ version: 1 }),
+    'utf8'
+  )
+  const result = await readCoveredLinesFile(tmpFile)
+  expect(result).toBeNull()
+  await fs.promises.unlink(tmpFile)
+})
+
 test('getInputs returns trackLostLines true when INPUT_TRACK_LOST_LINES is true', () => {
   process.env.INPUT_GITHUB_TOKEN = 'token'
   process.env.INPUT_FILENAME = 'filename.xml'

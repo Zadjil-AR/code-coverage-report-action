@@ -668,7 +668,8 @@ export async function writeCoveredLinesFile(
 /**
  * Read the covered-lines JSON file from disk and return a map of
  * relative path → flat sorted covered line numbers.
- * Returns null if the file does not exist (e.g. old artifact without this feature).
+ * Returns null if the file does not exist (e.g. old artifact without this feature),
+ * or if the file cannot be parsed / has an unexpected schema or version.
  */
 export async function readCoveredLinesFile(
   filePath: string
@@ -676,8 +677,26 @@ export async function readCoveredLinesFile(
   if (!(await checkFileExists(filePath))) {
     return null;
   }
-  const raw = await readFile(filePath, 'utf8');
-  const data: CoveredLinesFile = JSON.parse(raw);
+  let data: CoveredLinesFile;
+  try {
+    const raw = await readFile(filePath, 'utf8');
+    data = JSON.parse(raw) as CoveredLinesFile;
+  } catch (err: any) {
+    core.warning(
+      `Failed to parse ${filePath}: ${err.message}. Lost lines analysis skipped.`
+    );
+    return null;
+  }
+  if (
+    data.version !== 1 ||
+    typeof data.files !== 'object' ||
+    data.files === null
+  ) {
+    core.warning(
+      `${filePath} has unexpected format or version. Lost lines analysis skipped.`
+    );
+    return null;
+  }
   const result: Record<string, number[]> = {};
   for (const [rel, ranges] of Object.entries(data.files)) {
     result[rel] = rangeTuplesToLines(ranges);
