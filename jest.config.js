@@ -6,6 +6,7 @@ module.exports = {
 	transform: {
 	  '^.+\\.ts$': 'ts-jest'
 	},
+	snapshotSerializers: ['<rootDir>/__tests__/number-array-serializer.js'],
 	verbose: true,
 	collectCoverage: true,
 	collectCoverageFrom: ['src/**/*.{js,ts}'],
