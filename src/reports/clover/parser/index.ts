@@ -7,7 +7,10 @@ import {
   escapeRegExp
 } from '../../../utils';
 
-export default async function parse(clover: Clover, trackLostLines = false): Promise<Coverage> {
+export default async function parse(
+  clover: Clover,
+  trackLostLines = false
+): Promise<Coverage> {
   const { metrics, '@_timestamp': timestamp } = clover.coverage.project;
 
   let files: Files = {};
@@ -18,7 +21,10 @@ export default async function parse(clover: Clover, trackLostLines = false): Pro
     };
   }
   if (clover.coverage.project.file) {
-    files = { ...files, ...(await parseFiles(clover.coverage.project.file, trackLostLines)) };
+    files = {
+      ...files,
+      ...(await parseFiles(clover.coverage.project.file, trackLostLines))
+    };
   }
 
   const fileList = Object.values(files).map((file) => file.absolute);
@@ -42,7 +48,10 @@ export default async function parse(clover: Clover, trackLostLines = false): Pro
  * @param {Package[]} packages
  * @returns {Promise<Files>}
  */
-async function parsePackages(packages: Package[], trackLostLines = false): Promise<Files> {
+async function parsePackages(
+  packages: Package[],
+  trackLostLines = false
+): Promise<Files> {
   let allFiles: Files = {};
   for await (const p of packages) {
     if (!p.file) {
@@ -60,7 +69,10 @@ async function parsePackages(packages: Package[], trackLostLines = false): Promi
  * @param {File[]|undefined|null} files
  * @returns {Promise<Files>}
  */
-async function parseFiles(files: File[] | undefined | null, trackLostLines = false): Promise<Files> {
+async function parseFiles(
+  files: File[] | undefined | null,
+  trackLostLines = false
+): Promise<Files> {
   return (
     files?.reduce(
       (

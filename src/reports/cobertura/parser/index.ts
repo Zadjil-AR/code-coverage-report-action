@@ -7,8 +7,14 @@ import {
 } from '../../../utils';
 import { Cobertura, Package, Class, Lines } from '../types';
 
-export default async function parse(cobertura: Cobertura, trackLostLines = false): Promise<Coverage> {
-  const files: Files = await parsePackages(cobertura.coverage.packages.package, trackLostLines);
+export default async function parse(
+  cobertura: Cobertura,
+  trackLostLines = false
+): Promise<Coverage> {
+  const files: Files = await parsePackages(
+    cobertura.coverage.packages.package,
+    trackLostLines
+  );
 
   const fileList = Object.values(files).map((file) => file.absolute);
   const basePath = `${determineCommonBasePath(fileList)}`;
@@ -63,7 +69,10 @@ function mergeFileEntry(
   };
 }
 
-async function parsePackages(packages?: Package[], trackLostLines = false): Promise<Files> {
+async function parsePackages(
+  packages?: Package[],
+  trackLostLines = false
+): Promise<Files> {
   const allFiles: Files = {};
   for await (const p of packages || []) {
     if (!p.classes) {
@@ -86,14 +95,21 @@ async function parsePackages(packages?: Package[], trackLostLines = false): Prom
  * Count lines_covered and lines_valid from a class's lines array.
  * Also returns the sorted array of covered line numbers.
  */
-function countLines(lines: Lines, trackLostLines: boolean): {
+function countLines(
+  lines: Lines,
+  trackLostLines: boolean
+): {
   lines_covered: number;
   lines_valid: number;
   covered_lines: number[] | undefined;
 } {
   const lineArray = lines?.line;
   if (!lineArray) {
-    return { lines_covered: 0, lines_valid: 0, covered_lines: trackLostLines ? [] : undefined };
+    return {
+      lines_covered: 0,
+      lines_valid: 0,
+      covered_lines: trackLostLines ? [] : undefined
+    };
   }
   const arr = Array.isArray(lineArray) ? lineArray : [lineArray];
   let lines_covered = 0;
@@ -124,7 +140,10 @@ function countLines(lines: Lines, trackLostLines: boolean): {
  * @param {Class[]} classes
  * @returns {Promise<Files>}
  */
-async function parseClasses(classes?: Class[], trackLostLines = false): Promise<Files> {
+async function parseClasses(
+  classes?: Class[],
+  trackLostLines = false
+): Promise<Files> {
   const byPath = new Map<
     string,
     {
@@ -138,7 +157,10 @@ async function parseClasses(classes?: Class[], trackLostLines = false): Promise<
 
   for (const cls of classes || []) {
     const path = cls['@_filename'];
-    const { lines_covered, lines_valid, covered_lines } = countLines(cls.lines, trackLostLines);
+    const { lines_covered, lines_valid, covered_lines } = countLines(
+      cls.lines,
+      trackLostLines
+    );
     const key = path;
 
     if (byPath.has(key)) {
@@ -146,7 +168,10 @@ async function parseClasses(classes?: Class[], trackLostLines = false): Promise<
       cur.lines_covered += lines_covered;
       cur.lines_valid += lines_valid;
       if (trackLostLines) {
-        const merged = new Set<number>([...(cur.covered_lines ?? []), ...(covered_lines ?? [])]);
+        const merged = new Set<number>([
+          ...(cur.covered_lines ?? []),
+          ...(covered_lines ?? [])
+        ]);
         cur.covered_lines = [...merged].sort((a, b) => a - b);
       }
     } else {
