@@ -114,6 +114,7 @@ function extractFileInfo(
   return { oldPath, newPath, deleted };
 }
 
+/** Extract all hunk headers from the lines of a file diff section. */
 function parseHunks(lines: string[]): Hunk[] {
   const hunks: Hunk[] = [];
   for (const line of lines) {
