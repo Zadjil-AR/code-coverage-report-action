@@ -130,8 +130,8 @@ export function extractCloverCoveredLines(
   }
   const covered: number[] = [];
   for (const line of arr) {
-    const count = parseInt(line['@_count'] ?? '0', 10);
-    const num = parseInt(line['@_num'] ?? '0', 10);
+    const count = Number.parseInt(line['@_count'] ?? '0', 10);
+    const num = Number.parseInt(line['@_num'] ?? '0', 10);
     if (count > 0 && num > 0) {
       covered.push(num);
     }

@@ -115,8 +115,11 @@ function countLines(
   let lines_covered = 0;
   const covered_lines: number[] | undefined = trackLostLines ? [] : undefined;
   for (const line of arr) {
-    const hits = parseInt((line as { '@_hits'?: string })['@_hits'] ?? '0', 10);
-    const num = parseInt(
+    const hits = Number.parseInt(
+      (line as { '@_hits'?: string })['@_hits'] ?? '0',
+      10
+    );
+    const num = Number.parseInt(
       (line as { '@_number'?: string })['@_number'] ?? '0',
       10
     );

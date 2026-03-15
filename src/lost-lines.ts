@@ -1,5 +1,5 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import {
   FileLostLines,
   LineRange,
@@ -74,21 +74,11 @@ export function parseGitDiff(diffOutput: string): Map<string, FileDiff> {
 
     let oldPath = headerMatch[1];
     let newPath = headerMatch[2];
-    let deleted = false;
 
-    for (const line of lines) {
-      const renameFrom = line.match(/^rename from (.*)/);
-      const renameTo = line.match(/^rename to (.*)/);
-      if (renameFrom) {
-        oldPath = renameFrom[1];
-      }
-      if (renameTo) {
-        newPath = renameTo[1];
-      }
-      if (line.startsWith('deleted file mode')) {
-        deleted = true;
-      }
-    }
+    const fileInfo = extractFileInfo(lines, oldPath, newPath);
+    oldPath = fileInfo.oldPath;
+    newPath = fileInfo.newPath;
+    const deleted = fileInfo.deleted;
 
     const hunks = parseHunks(lines);
     result.set(oldPath, { newPath, hunks, deleted });
@@ -97,7 +87,33 @@ export function parseGitDiff(diffOutput: string): Map<string, FileDiff> {
   return result;
 }
 
-/** Extract all hunk headers from the lines of a file diff section. */
+/** Extract old/new paths and deleted flag from the lines of a diff section. */
+function extractFileInfo(
+  lines: string[],
+  defaultOldPath: string,
+  defaultNewPath: string
+): { oldPath: string; newPath: string; deleted: boolean } {
+  let oldPath = defaultOldPath;
+  let newPath = defaultNewPath;
+  let deleted = false;
+
+  for (const line of lines) {
+    const renameFrom = line.match(/^rename from (.*)/);
+    const renameTo = line.match(/^rename to (.*)/);
+    if (renameFrom) {
+      oldPath = renameFrom[1];
+    }
+    if (renameTo) {
+      newPath = renameTo[1];
+    }
+    if (line.startsWith('deleted file mode')) {
+      deleted = true;
+    }
+  }
+
+  return { oldPath, newPath, deleted };
+}
+
 function parseHunks(lines: string[]): Hunk[] {
   const hunks: Hunk[] = [];
   for (const line of lines) {
@@ -308,7 +324,19 @@ export function computeLostLinesReport(
       ? roundPercentage((overallLostCount / overallBaseCoveredCount) * 100)
       : 0;
 
-  // Build at most 5 preview ranges (head line numbers) across all files for template rendering.
+  const previewRanges = buildPreviewRanges(files);
+
+  return {
+    files,
+    overallBaseCoveredCount,
+    overallLostCount,
+    overallLostPercentage,
+    previewRanges
+  };
+}
+
+/** Build at most 5 preview ranges (head line numbers) across all files for template rendering. */
+function buildPreviewRanges(files: FileLostLines[]): LostRangePreview[] {
   const previewRanges: LostRangePreview[] = [];
   for (const file of files) {
     for (const range of file.newLostRanges) {
@@ -321,12 +349,5 @@ export function computeLostLinesReport(
     }
     if (previewRanges.length >= 5) break;
   }
-
-  return {
-    files,
-    overallBaseCoveredCount,
-    overallLostCount,
-    overallLostPercentage,
-    previewRanges
-  };
+  return previewRanges;
 }
