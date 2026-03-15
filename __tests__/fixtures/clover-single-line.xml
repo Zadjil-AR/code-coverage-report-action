@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1715832361306" clover="3.2.0">
+  <project timestamp="1715832361306" name="All files">
+    <metrics statements="1" coveredstatements="1" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0" elements="1" coveredelements="1" complexity="0" loc="1" ncloc="1" packages="0" files="1" classes="1"/>
+    <file name="single.ts" path="/project/single.ts">
+      <metrics statements="1" coveredstatements="1" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+      <line num="5" count="3" type="stmt"/>
+    </file>
+  </project>
+</coverage>

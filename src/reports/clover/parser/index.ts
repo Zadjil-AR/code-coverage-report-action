@@ -1,3 +1,4 @@
+import * as core from '@actions/core';
 import { Clover, File, FileMetrics, Package } from '../types';
 import { Coverage, Files } from '../../../interfaces';
 import {
@@ -7,18 +8,25 @@ import {
   escapeRegExp
 } from '../../../utils';
 
-export default async function parse(clover: Clover): Promise<Coverage> {
+export default async function parse(
+  clover: Clover,
+  trackLostLines = false
+): Promise<Coverage> {
+  core.debug(`parse: trackLostLines=${trackLostLines}`);
   const { metrics, '@_timestamp': timestamp } = clover.coverage.project;
 
   let files: Files = {};
   if (clover.coverage.project.package) {
     files = {
       ...files,
-      ...(await parsePackages(clover.coverage.project.package))
+      ...(await parsePackages(clover.coverage.project.package, trackLostLines))
     };
   }
   if (clover.coverage.project.file) {
-    files = { ...files, ...(await parseFiles(clover.coverage.project.file)) };
+    files = {
+      ...files,
+      ...(await parseFiles(clover.coverage.project.file, trackLostLines))
+    };
   }
 
   const fileList = Object.values(files).map((file) => file.absolute);
@@ -42,13 +50,16 @@ export default async function parse(clover: Clover): Promise<Coverage> {
  * @param {Package[]} packages
  * @returns {Promise<Files>}
  */
-async function parsePackages(packages: Package[]): Promise<Files> {
+async function parsePackages(
+  packages: Package[],
+  trackLostLines = false
+): Promise<Files> {
   let allFiles: Files = {};
   for await (const p of packages) {
     if (!p.file) {
       continue;
     }
-    const files = await parseFiles(p.file);
+    const files = await parseFiles(p.file, trackLostLines);
     allFiles = { ...allFiles, ...files };
   }
   return allFiles;
@@ -60,12 +71,20 @@ async function parsePackages(packages: Package[]): Promise<Files> {
  * @param {File[]|undefined|null} files
  * @returns {Promise<Files>}
  */
-async function parseFiles(files: File[] | undefined | null): Promise<Files> {
+async function parseFiles(
+  files: File[] | undefined | null,
+  trackLostLines = false
+): Promise<Files> {
   return (
     files?.reduce(
       (
         previous,
-        { '@_name': name, metrics: fileMetrics, '@_path': path }: File
+        {
+          '@_name': name,
+          metrics: fileMetrics,
+          '@_path': path,
+          line: lineElements
+        }: File
       ) => {
         const coveredSum =
           (parseInt(fileMetrics['@_coveredconditionals'], 10) || 0) +
@@ -75,6 +94,11 @@ async function parseFiles(files: File[] | undefined | null): Promise<Files> {
           (parseInt(fileMetrics['@_conditionals'], 10) || 0) +
           (parseInt(fileMetrics['@_statements'], 10) || 0) +
           (parseInt(fileMetrics['@_methods'], 10) || 0);
+
+        const covered_lines = trackLostLines
+          ? extractCloverCoveredLines(lineElements)
+          : undefined;
+
         return {
           ...previous,
           [createHash(path ?? name)]: {
@@ -82,13 +106,39 @@ async function parseFiles(files: File[] | undefined | null): Promise<Files> {
             absolute: path ?? name,
             coverage: processCoverageMetrics(fileMetrics),
             lines_covered: coveredSum,
-            lines_valid: codeSum
+            lines_valid: codeSum,
+            covered_lines
           }
         };
       },
       {}
     ) ?? {}
   );
+}
+
+/**
+ * Extract covered line numbers from Clover line elements.
+ * A line is covered when its `count` attribute is > 0.
+ */
+export function extractCloverCoveredLines(
+  lineElements: File['line']
+): number[] {
+  if (!lineElements) {
+    return [];
+  }
+  const arr = Array.isArray(lineElements) ? lineElements : [lineElements];
+  if (arr.length === 0) {
+    return [];
+  }
+  const covered: number[] = [];
+  for (const line of arr) {
+    const count = Number.parseInt(line['@_count'] ?? '0', 10);
+    const num = Number.parseInt(line['@_num'] ?? '0', 10);
+    if (count > 0 && num > 0) {
+      covered.push(num);
+    }
+  }
+  return covered.sort((a, b) => a - b);
 }
 
 /**
