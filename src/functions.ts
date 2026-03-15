@@ -266,15 +266,22 @@ type CoverageGroupBy = 'file' | 'top_dir' | 'depth' | 'parent_dir';
  */
 function buildLostLinesByFile(
   lostLinesReport?: LostLinesReport
-): Map<string, { lostCount: number; lostPercentage: number }> {
+): Map<
+  string,
+  { lostCount: number; lostPercentage: number; baseCoveredCount: number }
+> {
   if (!lostLinesReport) {
     return new Map();
   }
-  const map = new Map<string, { lostCount: number; lostPercentage: number }>();
+  const map = new Map<
+    string,
+    { lostCount: number; lostPercentage: number; baseCoveredCount: number }
+  >();
   for (const entry of lostLinesReport.files) {
     map.set(entry.file, {
       lostCount: entry.lostCount,
-      lostPercentage: entry.lostPercentage
+      lostPercentage: entry.lostPercentage,
+      baseCoveredCount: entry.baseCoveredCount
     });
   }
   return map;
@@ -398,14 +405,29 @@ function buildCoverageRows(
       : groupBy === 'depth' && coverageDepth !== undefined
         ? (relativePath: string) => getPathAtDepth(relativePath, coverageDepth)
         : getParentDirFromFile;
+  const lostByFile = buildLostLinesByFile(lostLinesReport);
   const byDir: Record<
     string,
-    { headSum: number; baseSum: number; count: number; baseCount: number }
+    {
+      headSum: number;
+      baseSum: number;
+      count: number;
+      baseCount: number;
+      lostCount: number;
+      lostBaseCoveredCount: number;
+    }
   > = {};
   for (const [hash, file] of fileEntries) {
     const key = getGroupKey(file.relative);
     if (!byDir[key]) {
-      byDir[key] = { headSum: 0, baseSum: 0, count: 0, baseCount: 0 };
+      byDir[key] = {
+        headSum: 0,
+        baseSum: 0,
+        count: 0,
+        baseCount: 0,
+        lostCount: 0,
+        lostBaseCoveredCount: 0
+      };
     }
     byDir[key].headSum += file.coverage;
     byDir[key].count += 1;
@@ -413,51 +435,70 @@ function buildCoverageRows(
       byDir[key].baseSum += baseCoverage.files[hash].coverage;
       byDir[key].baseCount += 1;
     }
+    const lostEntry = lostByFile.get(file.relative);
+    if (lostEntry) {
+      byDir[key].lostCount += lostEntry.lostCount;
+      byDir[key].lostBaseCoveredCount += lostEntry.baseCoveredCount;
+    }
   }
 
   return Object.entries(byDir)
-    .map(([pkg, { headSum, baseSum, count, baseCount }]) => {
-      const headAvg = roundPercentage(headSum / count);
-      const baseAvg = baseCount > 0 ? roundPercentage(baseSum / baseCount) : 0;
-      const differencePercentage =
-        baseCoverage !== null ? roundPercentage(headAvg - baseAvg) : null;
-      if (
-        baseCoverage !== null &&
-        failOnNegativeDifference &&
-        negativeDifferenceBy === 'package' &&
-        differencePercentage !== null &&
-        differencePercentage < 0 &&
-        differencePercentage < negativeDifferenceThreshold
-      ) {
-        core.setFailed(
-          `${pkg} coverage difference was ${differencePercentage}% which is below threshold of ${negativeDifferenceThreshold}%`
-        );
-      }
-      if (baseCoverage === null) {
+    .map(
+      ([
+        pkg,
+        { headSum, baseSum, count, baseCount, lostCount, lostBaseCoveredCount }
+      ]) => {
+        const headAvg = roundPercentage(headSum / count);
+        const baseAvg =
+          baseCount > 0 ? roundPercentage(baseSum / baseCount) : 0;
+        const differencePercentage =
+          baseCoverage !== null ? roundPercentage(headAvg - baseAvg) : null;
+        if (
+          baseCoverage !== null &&
+          failOnNegativeDifference &&
+          negativeDifferenceBy === 'package' &&
+          differencePercentage !== null &&
+          differencePercentage < 0 &&
+          differencePercentage < negativeDifferenceThreshold
+        ) {
+          core.setFailed(
+            `${pkg} coverage difference was ${differencePercentage}% which is below threshold of ${negativeDifferenceThreshold}%`
+          );
+        }
+        if (baseCoverage === null) {
+          return {
+            package: pkg,
+            base_coverage: `${colorizePercentageByThreshold(
+              headAvg,
+              fileCoverageWarningMax,
+              fileCoverageErrorMin
+            )}`
+          };
+        }
+        const lostPercentage =
+          lostBaseCoveredCount > 0
+            ? roundPercentage((lostCount / lostBaseCoveredCount) * 100)
+            : 0;
         return {
           package: pkg,
           base_coverage: `${colorizePercentageByThreshold(
+            baseAvg,
+            fileCoverageWarningMax,
+            fileCoverageErrorMin
+          )}`,
+          new_coverage: `${colorizePercentageByThreshold(
             headAvg,
             fileCoverageWarningMax,
             fileCoverageErrorMin
-          )}`
+          )}`,
+          difference: colorizePercentageByThreshold(differencePercentage),
+          lost_coverage:
+            lostCount > 0
+              ? formatLostCoverage(lostCount, lostPercentage)
+              : undefined
         };
       }
-      return {
-        package: pkg,
-        base_coverage: `${colorizePercentageByThreshold(
-          baseAvg,
-          fileCoverageWarningMax,
-          fileCoverageErrorMin
-        )}`,
-        new_coverage: `${colorizePercentageByThreshold(
-          headAvg,
-          fileCoverageWarningMax,
-          fileCoverageErrorMin
-        )}`,
-        difference: colorizePercentageByThreshold(differencePercentage)
-      };
-    })
+    )
     .sort((a, b) =>
       a.package < b.package ? -1 : a.package > b.package ? 1 : 0
     );
@@ -574,7 +615,8 @@ export async function generateMarkdown(
           headCoverage,
           baseCoverage,
           fileCoverageWarningMax,
-          fileCoverageErrorMin
+          fileCoverageErrorMin,
+          lostLinesReport
         )
       : [],
     inputs,
@@ -611,7 +653,8 @@ export function aggregateCoverageByTopDir(
   headCoverage: Coverage,
   baseCoverage: Coverage | null,
   fileCoverageWarningMax: number,
-  fileCoverageErrorMin: number
+  fileCoverageErrorMin: number,
+  lostLinesReport?: LostLinesReport
 ): HandlebarContextCoverage[] {
   const byDir = new Map<
     string,
@@ -627,6 +670,10 @@ export function aggregateCoverageByTopDir(
       byDir.get(dir)!.base.push(baseCoverage.files[hash]);
     }
   }
+
+  // Build per-file lost lines lookup for aggregation by top-dir.
+  const lostByFile = buildLostLinesByFile(lostLinesReport);
+
   const result: HandlebarContextCoverage[] = [];
   for (const [dir, { head, base }] of byDir.entries()) {
     const hasHeadLines = head.every(
@@ -691,6 +738,22 @@ export function aggregateCoverageByTopDir(
             )
           : 0;
     const diffPct = roundPercentage(headPct - basePct);
+
+    // Aggregate lost lines for all files in this top-level directory.
+    let dirLostCount = 0;
+    let dirLostBaseCoveredCount = 0;
+    for (const f of head) {
+      const lostEntry = lostByFile.get(f.relative);
+      if (lostEntry) {
+        dirLostCount += lostEntry.lostCount;
+        dirLostBaseCoveredCount += lostEntry.baseCoveredCount;
+      }
+    }
+    const dirLostPercentage =
+      dirLostBaseCoveredCount > 0
+        ? roundPercentage((dirLostCount / dirLostBaseCoveredCount) * 100)
+        : 0;
+
     result.push({
       package: dir,
       base_coverage: `${colorizePercentageByThreshold(
@@ -703,7 +766,11 @@ export function aggregateCoverageByTopDir(
         fileCoverageWarningMax,
         fileCoverageErrorMin
       )}`,
-      difference: colorizePercentageByThreshold(diffPct)
+      difference: colorizePercentageByThreshold(diffPct),
+      lost_coverage:
+        dirLostCount > 0
+          ? formatLostCoverage(dirLostCount, dirLostPercentage)
+          : undefined
     });
   }
   return result.sort(

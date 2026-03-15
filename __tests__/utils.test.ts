@@ -603,6 +603,42 @@ test('readCoveredLinesFile returns null and warns when files field is missing', 
   await fs.promises.unlink(tmpFile)
 })
 
+test('readCoveredLinesFile returns null and warns when an entry has non-array ranges', async () => {
+  const tmpFile = path.join(os.tmpdir(), `coverage-lines-badrange-${Date.now()}.json`)
+  await fs.promises.writeFile(
+    tmpFile,
+    JSON.stringify({ version: 1, files: { 'src/a.ts': 'not-an-array' } }),
+    'utf8'
+  )
+  const result = await readCoveredLinesFile(tmpFile)
+  expect(result).toBeNull()
+  await fs.promises.unlink(tmpFile)
+})
+
+test('readCoveredLinesFile returns null and warns when a range tuple has non-integer values', async () => {
+  const tmpFile = path.join(os.tmpdir(), `coverage-lines-badtuple-${Date.now()}.json`)
+  await fs.promises.writeFile(
+    tmpFile,
+    JSON.stringify({ version: 1, files: { 'src/a.ts': [[1.5, 3]] } }),
+    'utf8'
+  )
+  const result = await readCoveredLinesFile(tmpFile)
+  expect(result).toBeNull()
+  await fs.promises.unlink(tmpFile)
+})
+
+test('readCoveredLinesFile returns null and warns when a range tuple has start > end', async () => {
+  const tmpFile = path.join(os.tmpdir(), `coverage-lines-badorder-${Date.now()}.json`)
+  await fs.promises.writeFile(
+    tmpFile,
+    JSON.stringify({ version: 1, files: { 'src/a.ts': [[5, 3]] } }),
+    'utf8'
+  )
+  const result = await readCoveredLinesFile(tmpFile)
+  expect(result).toBeNull()
+  await fs.promises.unlink(tmpFile)
+})
+
 test('getInputs returns trackLostLines true when INPUT_TRACK_LOST_LINES is true', () => {
   process.env.INPUT_GITHUB_TOKEN = 'token'
   process.env.INPUT_FILENAME = 'filename.xml'

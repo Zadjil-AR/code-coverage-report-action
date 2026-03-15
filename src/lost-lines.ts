@@ -193,34 +193,46 @@ export interface LostLinePair {
   headLine: number;
 }
 
+/** Result returned by computeLostLines. */
+export interface ComputeLostLinesResult {
+  /** Lines that survived in the head but are no longer covered. */
+  lostPairs: LostLinePair[];
+  /** Count of base covered lines that still exist in the head (denominator). */
+  survivingCount: number;
+}
+
 /**
  * Determine which base-covered lines are no longer covered in the head.
- * Deleted lines (resolver returns null) are excluded — they are not "lost".
- * Returns pairs of (baseLine, headLine) so callers can record both positions.
+ * Deleted lines (resolver returns null) are excluded — they are not "lost"
+ * and do not count towards the surviving denominator.
+ * Returns both the lost pairs and the surviving count in a single pass to
+ * avoid calling the line resolver twice.
  *
  * @param baseCoveredLines  Covered line numbers in the base file.
  * @param lineResolver      Maps base line → head line (null = deleted).
  * @param headCoveredSet    Set of covered line numbers in the head file.
- * @returns                 Pairs of (base line, head line) that lost coverage.
+ * @returns                 { lostPairs, survivingCount }
  */
 export function computeLostLines(
   baseCoveredLines: number[],
   lineResolver: (oldLine: number) => number | null,
   headCoveredSet: Set<number>
-): LostLinePair[] {
-  const lost: LostLinePair[] = [];
+): ComputeLostLinesResult {
+  const lostPairs: LostLinePair[] = [];
+  let survivingCount = 0;
 
   for (const baseLine of baseCoveredLines) {
     const headLine = lineResolver(baseLine);
     if (headLine === null) {
-      continue; // deleted — not lost
+      continue; // deleted — not lost, not counted in denominator
     }
+    survivingCount++;
     if (!headCoveredSet.has(headLine)) {
-      lost.push({ baseLine, headLine });
+      lostPairs.push({ baseLine, headLine });
     }
   }
 
-  return lost;
+  return { lostPairs, survivingCount };
 }
 
 /**
@@ -288,17 +300,13 @@ export function computeLostLinesReport(
     const headLines = headCoveredLinesMap[newPath] ?? [];
     const headCoveredSet = new Set<number>(headLines);
 
-    const lostPairs = computeLostLines(
+    // Single pass: compute lost pairs and surviving count together.
+    // Permanently deleted lines are excluded from both numerator and denominator.
+    const { lostPairs, survivingCount } = computeLostLines(
       baseCoveredLines,
       lineResolver,
       headCoveredSet
     );
-
-    // Count only surviving (non-deleted) base lines for the denominator.
-    // Permanently deleted lines are not considered lost and do not inflate the base count.
-    const survivingCount = baseCoveredLines.filter(
-      (l) => lineResolver(l) !== null
-    ).length;
 
     overallBaseCoveredCount += survivingCount;
     overallLostCount += lostPairs.length;

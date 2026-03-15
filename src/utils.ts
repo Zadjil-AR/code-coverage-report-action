@@ -699,6 +699,12 @@ export async function readCoveredLinesFile(
   }
   const result: Record<string, number[]> = {};
   for (const [rel, ranges] of Object.entries(data.files)) {
+    if (!isValidRangeTuples(ranges)) {
+      core.warning(
+        `${filePath}: entry "${rel}" has invalid range data. Lost lines analysis skipped.`
+      );
+      return null;
+    }
     result[rel] = rangeTuplesToLines(ranges);
   }
   return result;
@@ -735,4 +741,20 @@ function rangeTuplesToLines(ranges: [number, number][]): number[] {
     }
   }
   return lines;
+}
+
+/**
+ * Validate that a value is an array of valid [start, end] integer tuples where start <= end.
+ * Used to guard against corrupted or unexpected artifact data before calling rangeTuplesToLines.
+ */
+function isValidRangeTuples(value: unknown): value is [number, number][] {
+  if (!Array.isArray(value)) return false;
+  return (value as unknown[]).every(
+    (tuple) =>
+      Array.isArray(tuple) &&
+      (tuple as unknown[]).length === 2 &&
+      Number.isInteger((tuple as unknown[])[0]) &&
+      Number.isInteger((tuple as unknown[])[1]) &&
+      (tuple as number[])[0] <= (tuple as number[])[1]
+  );
 }

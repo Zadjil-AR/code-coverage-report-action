@@ -9,7 +9,8 @@ import {
   rangesToLines,
   getGitDiff,
   FileDiff,
-  LostLinePair
+  LostLinePair,
+  ComputeLostLinesResult
 } from '../src/lost-lines'
 import { expect, test, describe } from '@jest/globals'
 
@@ -277,22 +278,27 @@ describe('computeLostLines', () => {
   test('returns empty when all base covered lines are still covered', () => {
     const resolve = buildLineResolver([])
     const headSet = new Set([1, 2, 3])
-    expect(computeLostLines([1, 2, 3], resolve, headSet)).toEqual([])
+    const result: ComputeLostLinesResult = computeLostLines([1, 2, 3], resolve, headSet)
+    expect(result.lostPairs).toEqual([])
+    expect(result.survivingCount).toBe(3)
   })
 
   test('returns pairs for lines no longer covered', () => {
     const resolve = buildLineResolver([])
     const headSet = new Set([1, 3]) // line 2 is no longer covered
-    const result: LostLinePair[] = computeLostLines([1, 2, 3], resolve, headSet)
-    expect(result).toEqual([{ baseLine: 2, headLine: 2 }])
+    const result: ComputeLostLinesResult = computeLostLines([1, 2, 3], resolve, headSet)
+    expect(result.lostPairs).toEqual([{ baseLine: 2, headLine: 2 }])
+    expect(result.survivingCount).toBe(3)
   })
 
-  test('does not count deleted lines as lost', () => {
+  test('does not count deleted lines as lost or surviving', () => {
     // Line 2 was deleted: resolver returns null for it
     const resolve = buildLineResolver([{ oldStart: 2, oldCount: 1, newCount: 0 }])
     const headSet = new Set([1, 2]) // line 3 became line 2 in new file
     // Old lines 1,2,3: line 2 deleted, line 1→1, line 3→2
-    expect(computeLostLines([1, 2, 3], resolve, headSet)).toEqual([])
+    const result: ComputeLostLinesResult = computeLostLines([1, 2, 3], resolve, headSet)
+    expect(result.lostPairs).toEqual([])
+    expect(result.survivingCount).toBe(2) // lines 1 and 3 survive (line 2 deleted)
   })
 
   test('records both base and head line for a moved uncovered line', () => {
@@ -300,13 +306,16 @@ describe('computeLostLines', () => {
     const resolve = buildLineResolver([{ oldStart: 2, oldCount: 1, newCount: 0 }])
     const headSet = new Set([1]) // line 2 (was line 3) not covered
     // Old lines 1,2,3: line 2 deleted, line 3→2 (not in headSet)
-    const result: LostLinePair[] = computeLostLines([1, 2, 3], resolve, headSet)
-    expect(result).toEqual([{ baseLine: 3, headLine: 2 }])
+    const result: ComputeLostLinesResult = computeLostLines([1, 2, 3], resolve, headSet)
+    expect(result.lostPairs).toEqual([{ baseLine: 3, headLine: 2 }])
+    expect(result.survivingCount).toBe(2) // lines 1 and 3 survive (line 2 deleted)
   })
 
   test('returns empty when no base covered lines', () => {
     const resolve = buildLineResolver([])
-    expect(computeLostLines([], resolve, new Set())).toEqual([])
+    const result: ComputeLostLinesResult = computeLostLines([], resolve, new Set())
+    expect(result.lostPairs).toEqual([])
+    expect(result.survivingCount).toBe(0)
   })
 })
 
