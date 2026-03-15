@@ -33,6 +33,7 @@ import { computeLostLinesReport, getGitDiff, parseGitDiff } from './lost-lines';
 
 export async function run(): Promise<void> {
   try {
+    core.info(`Running code coverage report`);
     const filename = core.getInput('filename');
 
     if (!(await checkFileExists(filename))) {
