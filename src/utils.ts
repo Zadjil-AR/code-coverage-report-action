@@ -661,6 +661,9 @@ export async function writeCoveredLinesFile(
       filesMap[file.relative] = coveredLinesToRangesTuples(file.covered_lines);
     }
   }
+  core.debug(
+    `writeCoveredLinesFile: filesMap has ${Object.keys(filesMap).length} entries`
+  );
   const data: CoveredLinesFile = { version: 1, files: filesMap };
   await fs.writeFile(outputPath, JSON.stringify(data), 'utf8');
 }

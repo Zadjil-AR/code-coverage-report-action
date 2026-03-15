@@ -1,3 +1,4 @@
+import * as core from '@actions/core';
 import { Coverage, CoverageFile, Files } from '../../../interfaces';
 import {
   createHash,
@@ -11,6 +12,7 @@ export default async function parse(
   cobertura: Cobertura,
   trackLostLines = false
 ): Promise<Coverage> {
+  core.debug(`parse: trackLostLines=${trackLostLines}`);
   const files: Files = await parsePackages(
     cobertura.coverage.packages.package,
     trackLostLines

@@ -43,12 +43,16 @@ export async function run(): Promise<void> {
     core.debug(`filename: ${filename}`);
 
     const { excludePaths, trackLostLines } = getInputs();
+    core.debug(`excludePaths: ${excludePaths.join(', ')}`);
+    core.debug(`trackLostLines: ${trackLostLines}`);
 
+    core.debug(`GITHUB_EVENT_NAME: ${process.env.GITHUB_EVENT_NAME}`);
     switch (process.env.GITHUB_EVENT_NAME) {
       case 'pull_request':
       case 'pull_request_target': {
         const { GITHUB_BASE_REF = '', GITHUB_HEAD_REF = '' } = process.env;
         core.debug(`GITHUB_BASE_REF: ${GITHUB_BASE_REF}`);
+        core.debug(`GITHUB_HEAD_REF: ${GITHUB_HEAD_REF}`);
         const artifactPath = await downloadArtifacts(GITHUB_BASE_REF);
         core.debug(`artifactPath: ${artifactPath}`);
         let baseCoverage =
@@ -198,6 +202,9 @@ async function computePrLostLinesReport(
   headCoverage: Coverage,
   excludePaths: string[]
 ): Promise<LostLinesReport | undefined> {
+  core.debug(
+    `computePrLostLinesReport: artifactPath=${artifactPath}, baseRef=${baseRef}, excludePaths=${excludePaths.join(', ')}`
+  );
   const coveredLinesFilePath = path.join(artifactPath, COVERED_LINES_FILENAME);
   const rawBaseCoveredLinesMap =
     await readCoveredLinesFile(coveredLinesFilePath);

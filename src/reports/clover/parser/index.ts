@@ -1,3 +1,4 @@
+import * as core from '@actions/core';
 import { Clover, File, FileMetrics, Package } from '../types';
 import { Coverage, Files } from '../../../interfaces';
 import {
@@ -11,6 +12,7 @@ export default async function parse(
   clover: Clover,
   trackLostLines = false
 ): Promise<Coverage> {
+  core.debug(`parse: trackLostLines=${trackLostLines}`);
   const { metrics, '@_timestamp': timestamp } = clover.coverage.project;
 
   let files: Files = {};
