@@ -8,11 +8,14 @@ import {
   coveredLinesToRanges,
   rangesToLines,
   getGitDiff,
+  isRefInHistory,
+  fetchRef,
+  _gitExec,
   FileDiff,
   LostLinePair,
   ComputeLostLinesResult
 } from '../src/lost-lines'
-import { expect, test, describe } from '@jest/globals'
+import { expect, test, describe, jest, afterEach } from '@jest/globals'
 
 // ---------------------------------------------------------------------------
 // validateGitRef
@@ -569,4 +572,108 @@ test('getGitDiff with valid ref returns a string (integration)', async () => {
   // HEAD...HEAD diff is always empty but executes the git command
   const result = await getGitDiff('HEAD')
   expect(typeof result).toBe('string')
+})
+
+// ---------------------------------------------------------------------------
+// isRefInHistory (integration)
+// ---------------------------------------------------------------------------
+
+describe('isRefInHistory', () => {
+  test('returns true for HEAD (always present in any git repo)', async () => {
+    const result = await isRefInHistory('HEAD')
+    expect(result).toBe(true)
+  })
+
+  test('returns false for a ref that does not exist', async () => {
+    const result = await isRefInHistory(
+      'this-branch-does-not-exist-xyz987654'
+    )
+    expect(result).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// fetchRef (unit — spy on _gitExec.run for determinism)
+// ---------------------------------------------------------------------------
+
+describe('fetchRef', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  test('calls git fetch with depth=1 and the given ref', async () => {
+    const spy = jest
+      .spyOn(_gitExec, 'run')
+      .mockResolvedValue({ stdout: '', stderr: '' } as any)
+    await fetchRef('main')
+    expect(spy).toHaveBeenCalledWith('git', [
+      'fetch',
+      '--depth=1',
+      'origin',
+      'main'
+    ])
+  })
+
+  test('propagates errors from git fetch', async () => {
+    jest
+      .spyOn(_gitExec, 'run')
+      .mockRejectedValue(new Error('remote not found') as any)
+    await expect(fetchRef('main')).rejects.toThrow('remote not found')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getGitDiff — fetch triggered when ref not in local history (unit)
+// ---------------------------------------------------------------------------
+
+describe('getGitDiff with missing base ref', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  test('fetches ref from origin when it is not in local history', async () => {
+    // Sequence of _gitExec.run calls:
+    //   1. isRefInHistory → git rev-parse → reject (ref unknown)
+    //   2. fetchRef      → git fetch     → resolve
+    //   3. git diff      → git diff      → resolve with empty diff
+    const spy = jest
+      .spyOn(_gitExec, 'run')
+      .mockRejectedValueOnce(new Error('unknown rev') as never)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+
+    const result = await getGitDiff('main')
+
+    expect(result).toBe('')
+    // Verify fetch was invoked with the correct arguments
+    expect(spy).toHaveBeenCalledWith('git', [
+      'fetch',
+      '--depth=1',
+      'origin',
+      'main'
+    ])
+    expect(spy).toHaveBeenCalledTimes(3)
+  })
+
+  test('skips fetch when ref is already in local history', async () => {
+    // Sequence of _gitExec.run calls:
+    //   1. isRefInHistory → git rev-parse → resolve (ref present)
+    //   2. git diff      → git diff      → resolve with empty diff
+    const spy = jest
+      .spyOn(_gitExec, 'run')
+      .mockResolvedValueOnce({ stdout: 'abc123', stderr: '' } as any)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+
+    const result = await getGitDiff('main')
+
+    expect(result).toBe('')
+    // Verify fetch was NOT invoked
+    expect(spy).not.toHaveBeenCalledWith('git', [
+      'fetch',
+      '--depth=1',
+      'origin',
+      'main'
+    ])
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
 })

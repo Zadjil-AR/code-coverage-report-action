@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import * as core from '@actions/core';
 import {
   FileLostLines,
   LineRange,
@@ -8,7 +9,12 @@ import {
 } from './interfaces';
 import { roundPercentage } from './utils';
 
-const execFileAsync = promisify(execFile);
+/**
+ * Thin wrapper around `promisify(execFile)` exported so that tests can spy
+ * on it without needing to mock the `node:child_process` module globally.
+ * @internal
+ */
+export const _gitExec = { run: promisify(execFile) };
 
 /** A parsed diff hunk header. */
 interface Hunk {
@@ -39,12 +45,24 @@ export function validateGitRef(ref: string): boolean {
  * Uses execFile to avoid shell injection.
  * The trailing `--` explicitly ends the revision/option list so that no
  * subsequent argument can be misinterpreted as a git option or path filter.
+ *
+ * If baseRef is not found in the local git history (e.g. in a shallow clone),
+ * it is fetched from origin before running the diff.
  */
 export async function getGitDiff(baseRef: string): Promise<string> {
   if (!validateGitRef(baseRef)) {
     throw new Error(`Invalid git ref: ${JSON.stringify(baseRef)}`);
   }
-  const { stdout } = await execFileAsync('git', [
+  core.debug(`Checking if ${baseRef} is in local git history...`);
+  const refExists = await isRefInHistory(baseRef);
+  if (!refExists) {
+    core.debug(
+      `${baseRef} not found in local history — fetching from origin...`
+    );
+    await fetchRef(baseRef);
+    core.debug(`Fetched ${baseRef} from origin successfully.`);
+  }
+  const { stdout } = await _gitExec.run('git', [
     'diff',
     '--diff-filter=AMRCD',
     '-M',
@@ -53,6 +71,35 @@ export async function getGitDiff(baseRef: string): Promise<string> {
     '--'
   ]);
   return stdout;
+}
+
+/**
+ * Return true when `ref` resolves to a commit in the local repository.
+ * Uses `git rev-parse --verify <ref>^{commit}` which exits 0 on success and
+ * non-zero when the ref is unknown — without writing to stderr.
+ * Expects a pre-validated ref (see validateGitRef).
+ */
+export async function isRefInHistory(ref: string): Promise<boolean> {
+  try {
+    await _gitExec.run('git', [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `${ref}^{commit}`
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetch a single ref from the `origin` remote with a shallow depth of 1.
+ * Uses execFile to avoid shell injection.
+ * Expects a pre-validated ref (see validateGitRef).
+ */
+export async function fetchRef(ref: string): Promise<void> {
+  await _gitExec.run('git', ['fetch', '--depth=1', 'origin', ref]);
 }
 
 /**
