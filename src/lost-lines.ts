@@ -35,8 +35,10 @@ export function validateGitRef(ref: string): boolean {
 }
 
 /**
- * Run `git diff --diff-filter=AMRCD -M -U0 <baseRef>...HEAD` and return stdout.
+ * Run `git diff --diff-filter=AMRCD -M -U0 <baseRef>...HEAD --` and return stdout.
  * Uses execFile to avoid shell injection.
+ * The trailing `--` explicitly ends the revision/option list so that no
+ * subsequent argument can be misinterpreted as a git option or path filter.
  */
 export async function getGitDiff(baseRef: string): Promise<string> {
   if (!validateGitRef(baseRef)) {
@@ -47,7 +49,8 @@ export async function getGitDiff(baseRef: string): Promise<string> {
     '--diff-filter=AMRCD',
     '-M',
     '-U0',
-    `${baseRef}...HEAD`
+    `${baseRef}...HEAD`,
+    '--'
   ]);
   return stdout;
 }
