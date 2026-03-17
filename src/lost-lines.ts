@@ -71,7 +71,7 @@ export async function getGitDiff(
     );
     await logGitDebugInfo(baseRef, headRef);
     await fetchRefUntilMergeBase(baseRef, headRef);
-    core.debug(`Fetched ${baseRef} from origin successfully.`);
+    core.debug(`Fetched ${baseRef} and ${headRef} from origin successfully.`);
     await logGitDebugInfo(baseRef, headRef);
   }
   const { stdout } = await _gitExec.run('git', [
@@ -194,36 +194,44 @@ export async function hasMergeBase(
 }
 
 /**
- * Fetch `ref` from origin using incremental depth doubling until the merge
- * base between `ref` and `headRef` is reachable in the local history, or until
- * `MAX_FETCH_DEPTH` is reached (safety limit to avoid infinite loops or
- * excessive data transfer).
+ * Fetch both `baseRef` and `headRef` from origin using incremental depth
+ * doubling until the merge base between them is reachable in the local
+ * history, or until `MAX_FETCH_DEPTH` is reached.
+ *
+ * Both refs are fetched in a single `git fetch` invocation per iteration so
+ * that history for both branches is available when `git merge-base` is run.
+ * Fetching them together also allows git to resolve the merge base in a single
+ * network round-trip, which is equivalent to deepening both in parallel.
  *
  * Sequence: depth = INITIAL_FETCH_DEPTH, then doubles each iteration.
  * Expects pre-validated refs (see validateGitRef).
  */
 export async function fetchRefUntilMergeBase(
-  ref: string,
+  baseRef: string,
   headRef: string
 ): Promise<void> {
   let depth = INITIAL_FETCH_DEPTH;
   let isFirst = true;
   while (depth <= MAX_FETCH_DEPTH) {
     const flag = isFirst ? `--depth=${depth}` : `--deepen=${depth / 2}`;
-    core.debug(`Fetching ${ref} from origin with ${flag}...`);
-    await _gitExec.run('git', ['fetch', flag, 'origin', ref]);
-    if (await hasMergeBase(ref, headRef)) {
-      core.debug(`Merge base found for ${ref} at depth ${depth}.`);
+    core.debug(
+      `Fetching ${baseRef} and ${headRef} from origin with ${flag}...`
+    );
+    await _gitExec.run('git', ['fetch', flag, 'origin', baseRef, headRef]);
+    if (await hasMergeBase(baseRef, headRef)) {
+      core.debug(
+        `Merge base found for ${baseRef}...${headRef} at depth ${depth}.`
+      );
       return;
     }
     core.debug(
-      `Merge base not yet found for ${ref} at depth ${depth}, deepening...`
+      `Merge base not yet found for ${baseRef}...${headRef} at depth ${depth}, deepening...`
     );
     isFirst = false;
     depth *= 2;
   }
   core.debug(
-    `Reached max fetch depth (${MAX_FETCH_DEPTH}) without finding merge base for ${ref}.`
+    `Reached max fetch depth (${MAX_FETCH_DEPTH}) without finding merge base for ${baseRef}...${headRef}.`
   );
 }
 

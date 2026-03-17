@@ -666,7 +666,7 @@ describe('fetchRefUntilMergeBase', () => {
   test('fetches once when merge base is found on the first attempt', async () => {
     const spy = jest
       .spyOn(_gitExec, 'run')
-      // git fetch --depth=INITIAL_FETCH_DEPTH
+      // git fetch --depth=INITIAL_FETCH_DEPTH origin baseRef headRef
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase: git merge-base → success
       .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
@@ -677,7 +677,8 @@ describe('fetchRefUntilMergeBase', () => {
       'fetch',
       `--depth=${INITIAL_FETCH_DEPTH}`,
       'origin',
-      'main'
+      'main',
+      'feature/xyz'
     ])
     expect(spy).toHaveBeenCalledTimes(2)
   })
@@ -685,11 +686,11 @@ describe('fetchRefUntilMergeBase', () => {
   test('deepens depth when merge base is not found on the first attempt', async () => {
     const spy = jest
       .spyOn(_gitExec, 'run')
-      // iteration 1: fetch --depth=10
+      // iteration 1: fetch --depth=10 both refs
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase → not found
       .mockRejectedValueOnce(new Error('no common ancestor') as never)
-      // iteration 2: fetch --deepen=10 (deepen by the previous depth to double total)
+      // iteration 2: fetch --deepen=10 both refs
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase → found
       .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
@@ -700,13 +701,15 @@ describe('fetchRefUntilMergeBase', () => {
       'fetch',
       `--depth=${INITIAL_FETCH_DEPTH}`,
       'origin',
-      'main'
+      'main',
+      'feature/xyz'
     ])
     expect(spy).toHaveBeenNthCalledWith(3, 'git', [
       'fetch',
       `--deepen=${INITIAL_FETCH_DEPTH}`,
       'origin',
-      'main'
+      'main',
+      'feature/xyz'
     ])
     expect(spy).toHaveBeenCalledTimes(4)
   })
@@ -775,12 +778,13 @@ describe('getGitDiff with missing base ref', () => {
     const result = await getGitDiff('main', 'feature/xyz')
 
     expect(result).toBe('')
-    // Verify fetch was invoked with the initial incremental depth
+    // Verify fetch was invoked with both refs in a single call
     expect(spy).toHaveBeenCalledWith('git', [
       'fetch',
       `--depth=${INITIAL_FETCH_DEPTH}`,
       'origin',
-      'main'
+      'main',
+      'feature/xyz'
     ])
     // Verify diff used explicit refs, not HEAD
     expect(spy).toHaveBeenCalledWith('git', [
