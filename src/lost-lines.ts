@@ -185,9 +185,11 @@ export async function hasMergeBase(baseRef: string): Promise<boolean> {
  */
 export async function fetchRefUntilMergeBase(ref: string): Promise<void> {
   let depth = INITIAL_FETCH_DEPTH;
+  let isFirst = true;
   while (depth <= MAX_FETCH_DEPTH) {
-    core.debug(`Fetching ${ref} from origin with depth ${depth}...`);
-    await _gitExec.run('git', ['fetch', `--depth=${depth}`, 'origin', ref]);
+    const flag = isFirst ? `--depth=${depth}` : `--deepen=${depth / 2}`;
+    core.debug(`Fetching ${ref} from origin with ${flag}...`);
+    await _gitExec.run('git', ['fetch', flag, 'origin', ref]);
     if (await hasMergeBase(ref)) {
       core.debug(`Merge base found for ${ref} at depth ${depth}.`);
       return;
@@ -195,6 +197,7 @@ export async function fetchRefUntilMergeBase(ref: string): Promise<void> {
     core.debug(
       `Merge base not yet found for ${ref} at depth ${depth}, deepening...`
     );
+    isFirst = false;
     depth *= 2;
   }
   core.debug(

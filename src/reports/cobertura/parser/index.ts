@@ -30,7 +30,7 @@ export default async function parse(
     coverage: roundPercentage(
       parseFloat(cobertura.coverage['@_line-rate']) * 100
     ),
-    timestamp: parseInt(cobertura.coverage['@_timestamp']),
+    timestamp: Number.parseInt(cobertura.coverage['@_timestamp']),
     basePath
   };
 }

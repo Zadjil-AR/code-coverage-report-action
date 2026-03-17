@@ -39,7 +39,7 @@ export default async function parse(
       return { ...previous, [createHash(file.relative)]: file };
     }, {}),
     coverage: processCoverageMetrics(metrics),
-    timestamp: parseInt(timestamp),
+    timestamp: Number.parseInt(timestamp),
     basePath
   };
 }
@@ -87,13 +87,13 @@ async function parseFiles(
         }: File
       ) => {
         const coveredSum =
-          (parseInt(fileMetrics['@_coveredconditionals'], 10) || 0) +
-          (parseInt(fileMetrics['@_coveredstatements'], 10) || 0) +
-          (parseInt(fileMetrics['@_coveredmethods'], 10) || 0);
+          (Number.parseInt(fileMetrics['@_coveredconditionals'], 10) || 0) +
+          (Number.parseInt(fileMetrics['@_coveredstatements'], 10) || 0) +
+          (Number.parseInt(fileMetrics['@_coveredmethods'], 10) || 0);
         const codeSum =
-          (parseInt(fileMetrics['@_conditionals'], 10) || 0) +
-          (parseInt(fileMetrics['@_statements'], 10) || 0) +
-          (parseInt(fileMetrics['@_methods'], 10) || 0);
+          (Number.parseInt(fileMetrics['@_conditionals'], 10) || 0) +
+          (Number.parseInt(fileMetrics['@_statements'], 10) || 0) +
+          (Number.parseInt(fileMetrics['@_methods'], 10) || 0);
 
         const covered_lines = trackLostLines
           ? extractCloverCoveredLines(lineElements)
@@ -151,12 +151,12 @@ export function extractCloverCoveredLines(
  */
 function processCoverageMetrics(metrics: FileMetrics): number {
   const coveredConditionals =
-    parseInt(metrics['@_coveredconditionals'], 10) || 0;
-  const coveredStatements = parseInt(metrics['@_coveredstatements'], 10) || 0;
-  const coveredMethods = parseInt(metrics['@_coveredmethods'], 10) || 0;
-  const conditionals = parseInt(metrics['@_conditionals'], 10) || 0;
-  const statements = parseInt(metrics['@_statements'], 10) || 0;
-  const methods = parseInt(metrics['@_methods'], 10) || 0;
+    Number.parseInt(metrics['@_coveredconditionals'], 10) || 0;
+  const coveredStatements = Number.parseInt(metrics['@_coveredstatements'], 10) || 0;
+  const coveredMethods = Number.parseInt(metrics['@_coveredmethods'], 10) || 0;
+  const conditionals = Number.parseInt(metrics['@_conditionals'], 10) || 0;
+  const statements = Number.parseInt(metrics['@_statements'], 10) || 0;
+  const methods = Number.parseInt(metrics['@_methods'], 10) || 0;
 
   const coveredSum = coveredConditionals + coveredStatements + coveredMethods;
   const codeSum = conditionals + statements + methods;

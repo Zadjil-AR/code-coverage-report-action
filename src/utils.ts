@@ -493,18 +493,18 @@ export function getInputs(): Inputs {
   const coverageDepth =
     coverageDepthRaw === ''
       ? undefined
-      : Math.max(1, Math.abs(parseInt(coverageDepthRaw, 10)) || 1);
+      : Math.max(1, Math.abs(Number.parseInt(coverageDepthRaw, 10)) || 1);
   const showCoverageByParentDir =
     core.getInput('show_coverage_by_parent_dir') === 'true';
   const overallCoverageFailThreshold = Math.abs(
-    parseInt(core.getInput('overall_coverage_fail_threshold') || '0')
+    Number.parseInt(core.getInput('overall_coverage_fail_threshold') || '0')
   );
   const fileCoverageErrorMin = Math.abs(
-    parseInt(core.getInput('file_coverage_error_min') || '50')
+    Number.parseInt(core.getInput('file_coverage_error_min') || '50')
   );
 
   const fileCoverageWarningMax = Math.abs(
-    parseInt(core.getInput('file_coverage_warning_max') || '75')
+    Number.parseInt(core.getInput('file_coverage_warning_max') || '75')
   );
 
   const negativeDifferenceThreshold =
@@ -527,7 +527,7 @@ export function getInputs(): Inputs {
   const retentionDays =
     retentionString === undefined
       ? undefined
-      : Math.abs(parseInt(retentionString));
+      : Math.abs(Number.parseInt(retentionString));
 
   const artifactName = core.getInput('artifact_name') || 'coverage-%name%';
   if (!artifactName.includes('%name%')) {

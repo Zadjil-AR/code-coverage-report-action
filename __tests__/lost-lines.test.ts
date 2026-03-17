@@ -689,7 +689,7 @@ describe('fetchRefUntilMergeBase', () => {
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase → not found
       .mockRejectedValueOnce(new Error('no common ancestor') as never)
-      // iteration 2: fetch --depth=20
+      // iteration 2: fetch --deepen=10 (deepen by the previous depth to double total)
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase → found
       .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
@@ -704,7 +704,7 @@ describe('fetchRefUntilMergeBase', () => {
     ])
     expect(spy).toHaveBeenNthCalledWith(3, 'git', [
       'fetch',
-      `--depth=${INITIAL_FETCH_DEPTH * 2}`,
+      `--deepen=${INITIAL_FETCH_DEPTH}`,
       'origin',
       'main'
     ])
@@ -712,10 +712,10 @@ describe('fetchRefUntilMergeBase', () => {
   })
 
   test('stops and does not throw when MAX_FETCH_DEPTH is exceeded without finding merge base', async () => {
-    // Build a spy that always returns "no merge base" so the loop exhausts
-    // Every odd call is a successful fetch, every even call is a failed hasMergeBase.
-    // With INITIAL=10, MAX=512 the depths tried are 10,20,40,80,160,320,640(>512 → stop)
-    // so 6 fetch+check pairs.
+    // Build a spy that always returns "no merge base" so the loop exhausts.
+    // With INITIAL=10, MAX=512 the iterations use depths 10,20,40,80,160,320 (all ≤ MAX),
+    // then depth doubles to 640 > MAX and the loop exits — 6 fetch+check pairs total.
+    // The first fetch uses --depth=, subsequent fetches use --deepen= (deepen by depth/2).
     const spy = jest.spyOn(_gitExec, 'run').mockImplementation(async (_cmd, args) => {
       const isFetch = Array.isArray(args) && args[0] === 'fetch'
       if (isFetch) return { stdout: '', stderr: '' } as any
@@ -724,14 +724,16 @@ describe('fetchRefUntilMergeBase', () => {
 
     await expect(fetchRefUntilMergeBase('main')).resolves.toBeUndefined()
 
-    // Verify the final fetch depth did not exceed MAX_FETCH_DEPTH
+    // Verify all fetch flag values are within bounds:
+    // first uses --depth=INITIAL, rest use --deepen=(depth/2) which are all ≤ MAX/2
     const fetchCalls = spy.mock.calls.filter(
       ([_cmd, args]) => Array.isArray(args) && args[0] === 'fetch'
     )
     for (const [_cmd, args] of fetchCalls) {
-      const depthArg = (args as string[]).find(a => a.startsWith('--depth='))!
-      const depth = parseInt(depthArg.split('=')[1], 10)
-      expect(depth).toBeLessThanOrEqual(MAX_FETCH_DEPTH)
+      const argList = args as string[]
+      const flagArg = argList.find(a => a.startsWith('--depth=') || a.startsWith('--deepen='))!
+      const value = Number.parseInt(flagArg.split('=')[1], 10)
+      expect(value).toBeLessThanOrEqual(MAX_FETCH_DEPTH)
     }
   })
 })
