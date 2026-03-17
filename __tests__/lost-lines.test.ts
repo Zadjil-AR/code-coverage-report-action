@@ -11,6 +11,10 @@ import {
   isRefInHistory,
   fetchRef,
   logGitDebugInfo,
+  hasMergeBase,
+  fetchRefUntilMergeBase,
+  INITIAL_FETCH_DEPTH,
+  MAX_FETCH_DEPTH,
   _gitExec,
   FileDiff,
   LostLinePair,
@@ -625,6 +629,114 @@ describe('fetchRef', () => {
 })
 
 // ---------------------------------------------------------------------------
+// hasMergeBase (unit)
+// ---------------------------------------------------------------------------
+
+describe('hasMergeBase', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  test('returns true when git merge-base exits 0', async () => {
+    jest
+      .spyOn(_gitExec, 'run')
+      .mockResolvedValue({ stdout: 'abc1234\n', stderr: '' } as any)
+    const result = await hasMergeBase('main')
+    expect(result).toBe(true)
+  })
+
+  test('returns false when git merge-base exits non-zero', async () => {
+    jest
+      .spyOn(_gitExec, 'run')
+      .mockRejectedValue(new Error('no common ancestor') as any)
+    const result = await hasMergeBase('main')
+    expect(result).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// fetchRefUntilMergeBase (unit)
+// ---------------------------------------------------------------------------
+
+describe('fetchRefUntilMergeBase', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  test('fetches once when merge base is found on the first attempt', async () => {
+    const spy = jest
+      .spyOn(_gitExec, 'run')
+      // git fetch --depth=INITIAL_FETCH_DEPTH
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // hasMergeBase: git merge-base → success
+      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
+
+    await fetchRefUntilMergeBase('main')
+
+    expect(spy).toHaveBeenCalledWith('git', [
+      'fetch',
+      `--depth=${INITIAL_FETCH_DEPTH}`,
+      'origin',
+      'main'
+    ])
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  test('deepens depth when merge base is not found on the first attempt', async () => {
+    const spy = jest
+      .spyOn(_gitExec, 'run')
+      // iteration 1: fetch --depth=10
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // hasMergeBase → not found
+      .mockRejectedValueOnce(new Error('no common ancestor') as never)
+      // iteration 2: fetch --depth=20
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // hasMergeBase → found
+      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
+
+    await fetchRefUntilMergeBase('main')
+
+    expect(spy).toHaveBeenNthCalledWith(1, 'git', [
+      'fetch',
+      `--depth=${INITIAL_FETCH_DEPTH}`,
+      'origin',
+      'main'
+    ])
+    expect(spy).toHaveBeenNthCalledWith(3, 'git', [
+      'fetch',
+      `--depth=${INITIAL_FETCH_DEPTH * 2}`,
+      'origin',
+      'main'
+    ])
+    expect(spy).toHaveBeenCalledTimes(4)
+  })
+
+  test('stops and does not throw when MAX_FETCH_DEPTH is exceeded without finding merge base', async () => {
+    // Build a spy that always returns "no merge base" so the loop exhausts
+    // Every odd call is a successful fetch, every even call is a failed hasMergeBase.
+    // With INITIAL=10, MAX=512 the depths tried are 10,20,40,80,160,320,640(>512 → stop)
+    // so 6 fetch+check pairs.
+    const spy = jest.spyOn(_gitExec, 'run').mockImplementation(async (_cmd, args) => {
+      const isFetch = Array.isArray(args) && args[0] === 'fetch'
+      if (isFetch) return { stdout: '', stderr: '' } as any
+      throw new Error('no common ancestor')
+    })
+
+    await expect(fetchRefUntilMergeBase('main')).resolves.toBeUndefined()
+
+    // Verify the final fetch depth did not exceed MAX_FETCH_DEPTH
+    const fetchCalls = spy.mock.calls.filter(
+      ([_cmd, args]) => Array.isArray(args) && args[0] === 'fetch'
+    )
+    for (const [_cmd, args] of fetchCalls) {
+      const depthArg = (args as string[]).find(a => a.startsWith('--depth='))!
+      const depth = parseInt(depthArg.split('=')[1], 10)
+      expect(depth).toBeLessThanOrEqual(MAX_FETCH_DEPTH)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
 // getGitDiff — fetch triggered when ref not in local history (unit)
 // ---------------------------------------------------------------------------
 
@@ -635,15 +747,16 @@ describe('getGitDiff with missing base ref', () => {
 
   test('fetches ref from origin when it is not in local history', async () => {
     // Sequence of _gitExec.run calls:
-    //   1. isRefInHistory         → git rev-parse   → reject (ref unknown)
-    //   2. logGitDebugInfo(pre)   → git log         → resolve
-    //   3. logGitDebugInfo(pre)   → git branch -a   → resolve
-    //   4. logGitDebugInfo(pre)   → git merge-base  → resolve
-    //   5. fetchRef               → git fetch       → resolve
-    //   6. logGitDebugInfo(post)  → git log         → resolve
-    //   7. logGitDebugInfo(post)  → git branch -a   → resolve
-    //   8. logGitDebugInfo(post)  → git merge-base  → resolve
-    //   9. git diff               → git diff        → resolve with empty diff
+    //   1.  isRefInHistory              → git rev-parse   → reject (ref unknown)
+    //   2.  logGitDebugInfo(pre)        → git log         → resolve
+    //   3.  logGitDebugInfo(pre)        → git branch -a   → resolve
+    //   4.  logGitDebugInfo(pre)        → git merge-base  → resolve
+    //   5.  fetchRefUntilMergeBase:     → git fetch depth=10 → resolve
+    //   6.  fetchRefUntilMergeBase:     → git merge-base  → resolve (found!)
+    //   7.  logGitDebugInfo(post)       → git log         → resolve
+    //   8.  logGitDebugInfo(post)       → git branch -a   → resolve
+    //   9.  logGitDebugInfo(post)       → git merge-base  → resolve
+    //   10. git diff                    → git diff        → resolve with empty diff
     const spy = jest
       .spyOn(_gitExec, 'run')
       .mockRejectedValueOnce(new Error('unknown rev') as never)
@@ -651,6 +764,7 @@ describe('getGitDiff with missing base ref', () => {
       .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
@@ -659,14 +773,14 @@ describe('getGitDiff with missing base ref', () => {
     const result = await getGitDiff('main')
 
     expect(result).toBe('')
-    // Verify fetch was invoked with the correct arguments
+    // Verify fetch was invoked with the initial incremental depth
     expect(spy).toHaveBeenCalledWith('git', [
       'fetch',
-      '--depth=1',
+      `--depth=${INITIAL_FETCH_DEPTH}`,
       'origin',
       'main'
     ])
-    expect(spy).toHaveBeenCalledTimes(9)
+    expect(spy).toHaveBeenCalledTimes(10)
   })
 
   test('skips fetch when ref is already in local history', async () => {
@@ -779,8 +893,10 @@ describe('logGitDebugInfo', () => {
       .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
       // logGitDebugInfo (pre-fetch): git merge-base
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
-      // fetchRef: git fetch
+      // fetchRefUntilMergeBase: git fetch --depth=10
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // fetchRefUntilMergeBase: hasMergeBase check → found
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
       // logGitDebugInfo (post-fetch): git log
       .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
       // logGitDebugInfo (post-fetch): git branch -a

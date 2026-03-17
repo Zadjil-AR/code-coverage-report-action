@@ -60,7 +60,7 @@ export async function getGitDiff(baseRef: string): Promise<string> {
       `${baseRef} not found in local history — fetching from origin...`
     );
     await logGitDebugInfo(baseRef);
-    await fetchRef(baseRef);
+    await fetchRefUntilMergeBase(baseRef);
     core.debug(`Fetched ${baseRef} from origin successfully.`);
     await logGitDebugInfo(baseRef);
   }
@@ -152,6 +152,54 @@ export async function fetchRef(ref: string): Promise<void> {
     'origin',
     ref
   ]);
+}
+
+/** Initial fetch depth for incremental deepening. */
+export const INITIAL_FETCH_DEPTH = 10;
+
+/** Maximum fetch depth before giving up on finding the merge base. */
+export const MAX_FETCH_DEPTH = 512;
+
+/**
+ * Return true when `git merge-base <baseRef> HEAD` exits 0, meaning a common
+ * ancestor between `baseRef` and HEAD exists in the locally available history.
+ * Expects a pre-validated ref (see validateGitRef).
+ */
+export async function hasMergeBase(baseRef: string): Promise<boolean> {
+  try {
+    await _gitExec.run('git', ['merge-base', baseRef, 'HEAD']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetch `ref` from origin using incremental depth doubling until the merge
+ * base between `ref` and HEAD is reachable in the local history, or until
+ * `MAX_FETCH_DEPTH` is reached (safety limit to avoid infinite loops or
+ * excessive data transfer).
+ *
+ * Sequence: depth = INITIAL_FETCH_DEPTH, then doubles each iteration.
+ * Expects a pre-validated ref (see validateGitRef).
+ */
+export async function fetchRefUntilMergeBase(ref: string): Promise<void> {
+  let depth = INITIAL_FETCH_DEPTH;
+  while (depth <= MAX_FETCH_DEPTH) {
+    core.debug(`Fetching ${ref} from origin with depth ${depth}...`);
+    await _gitExec.run('git', ['fetch', `--depth=${depth}`, 'origin', ref]);
+    if (await hasMergeBase(ref)) {
+      core.debug(`Merge base found for ${ref} at depth ${depth}.`);
+      return;
+    }
+    core.debug(
+      `Merge base not yet found for ${ref} at depth ${depth}, deepening...`
+    );
+    depth *= 2;
+  }
+  core.debug(
+    `Reached max fetch depth (${MAX_FETCH_DEPTH}) without finding merge base for ${ref}.`
+  );
 }
 
 /**
