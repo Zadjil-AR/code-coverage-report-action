@@ -62,6 +62,7 @@ export async function getGitDiff(baseRef: string): Promise<string> {
     await logGitDebugInfo(baseRef);
     await fetchRef(baseRef);
     core.debug(`Fetched ${baseRef} from origin successfully.`);
+    await logGitDebugInfo(baseRef);
   }
   const { stdout } = await _gitExec.run('git', [
     'diff',

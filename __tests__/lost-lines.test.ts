@@ -635,12 +635,15 @@ describe('getGitDiff with missing base ref', () => {
 
   test('fetches ref from origin when it is not in local history', async () => {
     // Sequence of _gitExec.run calls:
-    //   1. isRefInHistory  → git rev-parse    → reject (ref unknown)
-    //   2. logGitDebugInfo → git log          → resolve
-    //   3. logGitDebugInfo → git branch -a   → resolve
-    //   4. logGitDebugInfo → git merge-base  → resolve
-    //   5. fetchRef        → git fetch        → resolve
-    //   6. git diff        → git diff         → resolve with empty diff
+    //   1. isRefInHistory         → git rev-parse   → reject (ref unknown)
+    //   2. logGitDebugInfo(pre)   → git log         → resolve
+    //   3. logGitDebugInfo(pre)   → git branch -a   → resolve
+    //   4. logGitDebugInfo(pre)   → git merge-base  → resolve
+    //   5. fetchRef               → git fetch       → resolve
+    //   6. logGitDebugInfo(post)  → git log         → resolve
+    //   7. logGitDebugInfo(post)  → git branch -a   → resolve
+    //   8. logGitDebugInfo(post)  → git merge-base  → resolve
+    //   9. git diff               → git diff        → resolve with empty diff
     const spy = jest
       .spyOn(_gitExec, 'run')
       .mockRejectedValueOnce(new Error('unknown rev') as never)
@@ -648,6 +651,9 @@ describe('getGitDiff with missing base ref', () => {
       .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
+      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
 
     const result = await getGitDiff('main')
@@ -660,7 +666,7 @@ describe('getGitDiff with missing base ref', () => {
       'origin',
       'main'
     ])
-    expect(spy).toHaveBeenCalledTimes(6)
+    expect(spy).toHaveBeenCalledTimes(9)
   })
 
   test('skips fetch when ref is already in local history', async () => {
@@ -767,14 +773,20 @@ describe('logGitDebugInfo', () => {
       .spyOn(_gitExec, 'run')
       // isRefInHistory → reject (ref unknown)
       .mockRejectedValueOnce(new Error('unknown rev') as never)
-      // logGitDebugInfo: git log
+      // logGitDebugInfo (pre-fetch): git log
       .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
-      // logGitDebugInfo: git branch -a
+      // logGitDebugInfo (pre-fetch): git branch -a
       .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
-      // logGitDebugInfo: git merge-base
+      // logGitDebugInfo (pre-fetch): git merge-base
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
       // fetchRef: git fetch
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // logGitDebugInfo (post-fetch): git log
+      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
+      // logGitDebugInfo (post-fetch): git branch -a
+      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
+      // logGitDebugInfo (post-fetch): git merge-base
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
       // git diff
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
 
