@@ -99,7 +99,13 @@ export async function isRefInHistory(ref: string): Promise<boolean> {
  * Expects a pre-validated ref (see validateGitRef).
  */
 export async function fetchRef(ref: string): Promise<void> {
-  await _gitExec.run('git', ['fetch', '--depth=1', 'origin', ref]);
+  // prettier-ignore
+  await _gitExec.run('git', [
+    'fetch',
+    '--depth=1',
+    'origin',
+    ref
+  ]);
 }
 
 /**
