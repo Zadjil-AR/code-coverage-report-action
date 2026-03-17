@@ -41,35 +41,45 @@ export function validateGitRef(ref: string): boolean {
 }
 
 /**
- * Run `git diff --diff-filter=AMRCD -M -U0 <baseRef>...HEAD --` and return stdout.
+ * Run `git diff --diff-filter=AMRCD -M -U0 <baseRef>...<headRef> --` and return stdout.
  * Uses execFile to avoid shell injection.
  * The trailing `--` explicitly ends the revision/option list so that no
  * subsequent argument can be misinterpreted as a git option or path filter.
  *
- * If baseRef is not found in the local git history (e.g. in a shallow clone),
- * it is fetched from origin before running the diff.
+ * `headRef` must be the explicit head branch ref (not HEAD, which is a
+ * detached merge commit in the GitHub Actions pull_request context).
+ *
+ * If the merge base between baseRef and headRef is not reachable in the local
+ * history (e.g. in a shallow clone), baseRef is fetched from origin until the
+ * merge base is available.
  */
-export async function getGitDiff(baseRef: string): Promise<string> {
+export async function getGitDiff(
+  baseRef: string,
+  headRef: string
+): Promise<string> {
   if (!validateGitRef(baseRef)) {
     throw new Error(`Invalid git ref: ${JSON.stringify(baseRef)}`);
   }
-  core.debug(`Checking if ${baseRef} is in local git history...`);
-  const refExists = await isRefInHistory(baseRef);
-  if (!refExists) {
+  if (!validateGitRef(headRef)) {
+    throw new Error(`Invalid git ref: ${JSON.stringify(headRef)}`);
+  }
+  core.debug(`Checking for merge base between ${baseRef} and ${headRef}...`);
+  const mergeBaseExists = await hasMergeBase(baseRef, headRef);
+  if (!mergeBaseExists) {
     core.debug(
-      `${baseRef} not found in local history — fetching from origin...`
+      `No merge base found between ${baseRef} and ${headRef} — fetching from origin...`
     );
-    await logGitDebugInfo(baseRef);
-    await fetchRefUntilMergeBase(baseRef);
+    await logGitDebugInfo(baseRef, headRef);
+    await fetchRefUntilMergeBase(baseRef, headRef);
     core.debug(`Fetched ${baseRef} from origin successfully.`);
-    await logGitDebugInfo(baseRef);
+    await logGitDebugInfo(baseRef, headRef);
   }
   const { stdout } = await _gitExec.run('git', [
     'diff',
     '--diff-filter=AMRCD',
     '-M',
     '-U0',
-    `${baseRef}...HEAD`,
+    `${baseRef}...${headRef}`,
     '--'
   ]);
   return stdout;
@@ -97,17 +107,20 @@ export async function isRefInHistory(ref: string): Promise<boolean> {
 
 /**
  * Emit debug information about the current git state to help diagnose why a
- * baseRef could not be found in the local history.
+ * merge base could not be found.
  *
  * Logs:
  *  - the 20 most-recent commits (git log --oneline -n 20)
  *  - all local and remote-tracking branches (git branch -a)
- *  - the merge-base of `baseRef` and HEAD, or a message when none exists
+ *  - the merge-base of `baseRef` and `headRef`, or a message when none exists
  *
  * Every sub-command is wrapped in its own try/catch so that a failure in one
  * does not prevent the others from running.
  */
-export async function logGitDebugInfo(baseRef: string): Promise<void> {
+export async function logGitDebugInfo(
+  baseRef: string,
+  headRef: string
+): Promise<void> {
   try {
     const { stdout: logOut } = await _gitExec.run('git', [
       'log',
@@ -131,11 +144,13 @@ export async function logGitDebugInfo(baseRef: string): Promise<void> {
     const { stdout: mergeBaseOut } = await _gitExec.run('git', [
       'merge-base',
       baseRef,
-      'HEAD'
+      headRef
     ]);
-    core.debug(`Merge base of ${baseRef} and HEAD: ${mergeBaseOut.trim()}`);
+    core.debug(
+      `Merge base of ${baseRef} and ${headRef}: ${mergeBaseOut.trim()}`
+    );
   } catch {
-    core.debug(`No merge base found between ${baseRef} and HEAD`);
+    core.debug(`No merge base found between ${baseRef} and ${headRef}`);
   }
 }
 
@@ -161,13 +176,17 @@ export const INITIAL_FETCH_DEPTH = 10;
 export const MAX_FETCH_DEPTH = 512;
 
 /**
- * Return true when `git merge-base <baseRef> HEAD` exits 0, meaning a common
- * ancestor between `baseRef` and HEAD exists in the locally available history.
- * Expects a pre-validated ref (see validateGitRef).
+ * Return true when `git merge-base <baseRef> <headRef>` exits 0, meaning a
+ * common ancestor between `baseRef` and `headRef` exists in the locally
+ * available history.
+ * Expects pre-validated refs (see validateGitRef).
  */
-export async function hasMergeBase(baseRef: string): Promise<boolean> {
+export async function hasMergeBase(
+  baseRef: string,
+  headRef: string
+): Promise<boolean> {
   try {
-    await _gitExec.run('git', ['merge-base', baseRef, 'HEAD']);
+    await _gitExec.run('git', ['merge-base', baseRef, headRef]);
     return true;
   } catch {
     return false;
@@ -176,21 +195,24 @@ export async function hasMergeBase(baseRef: string): Promise<boolean> {
 
 /**
  * Fetch `ref` from origin using incremental depth doubling until the merge
- * base between `ref` and HEAD is reachable in the local history, or until
+ * base between `ref` and `headRef` is reachable in the local history, or until
  * `MAX_FETCH_DEPTH` is reached (safety limit to avoid infinite loops or
  * excessive data transfer).
  *
  * Sequence: depth = INITIAL_FETCH_DEPTH, then doubles each iteration.
- * Expects a pre-validated ref (see validateGitRef).
+ * Expects pre-validated refs (see validateGitRef).
  */
-export async function fetchRefUntilMergeBase(ref: string): Promise<void> {
+export async function fetchRefUntilMergeBase(
+  ref: string,
+  headRef: string
+): Promise<void> {
   let depth = INITIAL_FETCH_DEPTH;
   let isFirst = true;
   while (depth <= MAX_FETCH_DEPTH) {
     const flag = isFirst ? `--depth=${depth}` : `--deepen=${depth / 2}`;
     core.debug(`Fetching ${ref} from origin with ${flag}...`);
     await _gitExec.run('git', ['fetch', flag, 'origin', ref]);
-    if (await hasMergeBase(ref)) {
+    if (await hasMergeBase(ref, headRef)) {
       core.debug(`Merge base found for ${ref} at depth ${depth}.`);
       return;
     }

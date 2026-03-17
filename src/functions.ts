@@ -122,6 +122,7 @@ export async function run(): Promise<void> {
           lostLinesReport = await computePrLostLinesReport(
             artifactPath,
             GITHUB_BASE_REF,
+            GITHUB_HEAD_REF,
             headCoverage,
             excludePaths
           );
@@ -200,11 +201,12 @@ export async function run(): Promise<void> {
 async function computePrLostLinesReport(
   artifactPath: string,
   baseRef: string,
+  headRef: string,
   headCoverage: Coverage,
   excludePaths: string[]
 ): Promise<LostLinesReport | undefined> {
   core.debug(
-    `computePrLostLinesReport: artifactPath=${artifactPath}, baseRef=${baseRef}, excludePaths=${excludePaths.join(', ')}`
+    `computePrLostLinesReport: artifactPath=${artifactPath}, baseRef=${baseRef}, headRef=${headRef}, excludePaths=${excludePaths.join(', ')}`
   );
   const coveredLinesFilePath = path.join(artifactPath, COVERED_LINES_FILENAME);
   const rawBaseCoveredLinesMap =
@@ -231,7 +233,7 @@ async function computePrLostLinesReport(
   core.info(`Running git diff for lost lines analysis...`);
   let diffOutput: string;
   try {
-    diffOutput = await getGitDiff(baseRef);
+    diffOutput = await getGitDiff(baseRef, headRef);
   } catch (err: any) {
     core.warning(
       `git diff failed: ${err.message}. Lost lines analysis skipped.`
