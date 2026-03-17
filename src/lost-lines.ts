@@ -59,6 +59,7 @@ export async function getGitDiff(baseRef: string): Promise<string> {
     core.debug(
       `${baseRef} not found in local history — fetching from origin...`
     );
+    await logGitDebugInfo(baseRef);
     await fetchRef(baseRef);
     core.debug(`Fetched ${baseRef} from origin successfully.`);
   }
@@ -90,6 +91,50 @@ export async function isRefInHistory(ref: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Emit debug information about the current git state to help diagnose why a
+ * baseRef could not be found in the local history.
+ *
+ * Logs:
+ *  - the 20 most-recent commits (git log --oneline -n 20)
+ *  - all local and remote-tracking branches (git branch -a)
+ *  - the merge-base of `baseRef` and HEAD, or a message when none exists
+ *
+ * Every sub-command is wrapped in its own try/catch so that a failure in one
+ * does not prevent the others from running.
+ */
+export async function logGitDebugInfo(baseRef: string): Promise<void> {
+  try {
+    const { stdout: logOut } = await _gitExec.run('git', [
+      'log',
+      '--oneline',
+      '-n',
+      '20'
+    ]);
+    core.debug(`Recent commits (last 20):\n${logOut}`);
+  } catch (e) {
+    core.debug(`Failed to list recent commits: ${e}`);
+  }
+
+  try {
+    const { stdout: branchOut } = await _gitExec.run('git', ['branch', '-a']);
+    core.debug(`All branches:\n${branchOut}`);
+  } catch (e) {
+    core.debug(`Failed to list branches: ${e}`);
+  }
+
+  try {
+    const { stdout: mergeBaseOut } = await _gitExec.run('git', [
+      'merge-base',
+      baseRef,
+      'HEAD'
+    ]);
+    core.debug(`Merge base of ${baseRef} and HEAD: ${mergeBaseOut.trim()}`);
+  } catch {
+    core.debug(`No merge base found between ${baseRef} and HEAD`);
   }
 }
 

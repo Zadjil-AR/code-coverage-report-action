@@ -10,12 +10,14 @@ import {
   getGitDiff,
   isRefInHistory,
   fetchRef,
+  logGitDebugInfo,
   _gitExec,
   FileDiff,
   LostLinePair,
   ComputeLostLinesResult
 } from '../src/lost-lines'
-import { expect, test, describe, jest, afterEach } from '@jest/globals'
+import { expect, test, describe, jest, afterEach, beforeEach } from '@jest/globals'
+import * as core from '@actions/core'
 
 // ---------------------------------------------------------------------------
 // validateGitRef
@@ -633,12 +635,18 @@ describe('getGitDiff with missing base ref', () => {
 
   test('fetches ref from origin when it is not in local history', async () => {
     // Sequence of _gitExec.run calls:
-    //   1. isRefInHistory → git rev-parse → reject (ref unknown)
-    //   2. fetchRef      → git fetch     → resolve
-    //   3. git diff      → git diff      → resolve with empty diff
+    //   1. isRefInHistory  → git rev-parse    → reject (ref unknown)
+    //   2. logGitDebugInfo → git log          → resolve
+    //   3. logGitDebugInfo → git branch -a   → resolve
+    //   4. logGitDebugInfo → git merge-base  → resolve
+    //   5. fetchRef        → git fetch        → resolve
+    //   6. git diff        → git diff         → resolve with empty diff
     const spy = jest
       .spyOn(_gitExec, 'run')
       .mockRejectedValueOnce(new Error('unknown rev') as never)
+      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
+      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
 
@@ -652,7 +660,7 @@ describe('getGitDiff with missing base ref', () => {
       'origin',
       'main'
     ])
-    expect(spy).toHaveBeenCalledTimes(3)
+    expect(spy).toHaveBeenCalledTimes(6)
   })
 
   test('skips fetch when ref is already in local history', async () => {
@@ -675,5 +683,133 @@ describe('getGitDiff with missing base ref', () => {
       'main'
     ])
     expect(spy).toHaveBeenCalledTimes(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// logGitDebugInfo (unit)
+// ---------------------------------------------------------------------------
+
+describe('logGitDebugInfo', () => {
+  let debugSpy: ReturnType<typeof jest.spyOn>
+
+  beforeEach(() => {
+    debugSpy = jest.spyOn(core, 'debug').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  test('logs recent commits, all branches and merge-base when all commands succeed', async () => {
+    jest
+      .spyOn(_gitExec, 'run')
+      // git log
+      .mockResolvedValueOnce({ stdout: 'abc1234 first commit\ndef5678 second commit\n', stderr: '' } as any)
+      // git branch -a
+      .mockResolvedValueOnce({ stdout: '* main\n  remotes/origin/main\n', stderr: '' } as any)
+      // git merge-base
+      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
+
+    await logGitDebugInfo('main')
+
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Recent commits (last 20):')
+    )
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('All branches:')
+    )
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Merge base of main and HEAD: abc1234')
+    )
+  })
+
+  test('logs "No merge base found" when merge-base command fails', async () => {
+    jest
+      .spyOn(_gitExec, 'run')
+      // git log
+      .mockResolvedValueOnce({ stdout: 'abc1234 commit\n', stderr: '' } as any)
+      // git branch -a
+      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
+      // git merge-base → throws (no common ancestor)
+      .mockRejectedValueOnce(new Error('no merge base') as never)
+
+    await logGitDebugInfo('feature/xyz')
+
+    expect(debugSpy).toHaveBeenCalledWith(
+      'No merge base found between feature/xyz and HEAD'
+    )
+  })
+
+  test('logs error message and continues when git log fails', async () => {
+    jest
+      .spyOn(_gitExec, 'run')
+      // git log → fails
+      .mockRejectedValueOnce(new Error('git log failed') as never)
+      // git branch -a
+      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
+      // git merge-base
+      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
+
+    await logGitDebugInfo('main')
+
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to list recent commits:')
+    )
+    // Continues and logs branches successfully
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('All branches:')
+    )
+  })
+
+  test('is called by getGitDiff when baseRef is not in local history', async () => {
+    const runSpy = jest
+      .spyOn(_gitExec, 'run')
+      // isRefInHistory → reject (ref unknown)
+      .mockRejectedValueOnce(new Error('unknown rev') as never)
+      // logGitDebugInfo: git log
+      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
+      // logGitDebugInfo: git branch -a
+      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
+      // logGitDebugInfo: git merge-base
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
+      // fetchRef: git fetch
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // git diff
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+
+    await getGitDiff('main')
+
+    // Confirm git log was called as part of logGitDebugInfo
+    expect(runSpy).toHaveBeenCalledWith('git', [
+      'log',
+      '--oneline',
+      '-n',
+      '20'
+    ])
+    // Confirm git branch was called as part of logGitDebugInfo
+    expect(runSpy).toHaveBeenCalledWith('git', ['branch', '-a'])
+    // Confirm merge-base was attempted
+    expect(runSpy).toHaveBeenCalledWith('git', [
+      'merge-base',
+      'main',
+      'HEAD'
+    ])
+  })
+
+  test('is NOT called by getGitDiff when baseRef is already in local history', async () => {
+    const runSpy = jest
+      .spyOn(_gitExec, 'run')
+      // isRefInHistory → resolve (ref present)
+      .mockResolvedValueOnce({ stdout: 'abc123', stderr: '' } as any)
+      // git diff
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+
+    await getGitDiff('main')
+
+    // logGitDebugInfo's commands should NOT have been called
+    expect(runSpy).not.toHaveBeenCalledWith('git', expect.arrayContaining(['--oneline']))
+    expect(runSpy).not.toHaveBeenCalledWith('git', ['branch', '-a'])
+    expect(runSpy).toHaveBeenCalledTimes(2)
   })
 })
