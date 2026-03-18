@@ -13,7 +13,7 @@ import {
   logGitDebugInfo,
   hasMergeBase,
   fetchRefUntilMergeBase,
-  resolveGitRef,
+  ensureLocalRef,
   INITIAL_FETCH_DEPTH,
   MAX_FETCH_DEPTH,
   _gitExec,
@@ -600,100 +600,79 @@ describe('isRefInHistory', () => {
 })
 
 // ---------------------------------------------------------------------------
-// resolveGitRef (unit)
+// ensureLocalRef (unit)
 // ---------------------------------------------------------------------------
 
-describe('resolveGitRef', () => {
+describe('ensureLocalRef', () => {
   afterEach(() => {
     jest.restoreAllMocks()
   })
 
-  test('returns the ref as-is when it resolves directly', async () => {
-    jest
+  test('calls git update-ref to create a local branch from the remote-tracking ref', async () => {
+    const spy = jest
       .spyOn(_gitExec, 'run')
-      // isRefInHistory('main') → success
-      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
+      .mockResolvedValue({ stdout: '', stderr: '' } as any)
 
-    const result = await resolveGitRef('main')
-    expect(result).toBe('main')
-    expect(_gitExec.run).toHaveBeenCalledWith('git', [
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      'main^{commit}'
+    await ensureLocalRef('main')
+
+    expect(spy).toHaveBeenCalledWith('git', [
+      'update-ref',
+      'refs/heads/main',
+      'refs/remotes/origin/main'
     ])
   })
 
-  test('returns origin/<ref> when bare name does not resolve but origin/ does', async () => {
-    jest
-      .spyOn(_gitExec, 'run')
-      // isRefInHistory('main') → fail
-      .mockRejectedValueOnce(new Error('unknown ref') as never)
-      // isRefInHistory('origin/main') → success
-      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
-
-    const result = await resolveGitRef('main')
-    expect(result).toBe('origin/main')
-  })
-
-  test('returns remotes/origin/<ref> when neither bare nor origin/ resolve', async () => {
-    jest
-      .spyOn(_gitExec, 'run')
-      // isRefInHistory('main') → fail
-      .mockRejectedValueOnce(new Error('unknown ref') as never)
-      // isRefInHistory('origin/main') → fail
-      .mockRejectedValueOnce(new Error('unknown ref') as never)
-      // isRefInHistory('remotes/origin/main') → success
-      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
-
-    const result = await resolveGitRef('main')
-    expect(result).toBe('remotes/origin/main')
-  })
-
-  test('falls back to original ref when none of the candidates resolve', async () => {
-    jest
-      .spyOn(_gitExec, 'run')
-      .mockRejectedValue(new Error('unknown ref') as any)
-
-    const result = await resolveGitRef('main')
-    expect(result).toBe('main')
-  })
-
   test('works for a slash-separated branch name (e.g. feature/xyz)', async () => {
-    jest
+    const spy = jest
       .spyOn(_gitExec, 'run')
-      // isRefInHistory('feature/xyz') → fail
-      .mockRejectedValueOnce(new Error('unknown ref') as never)
-      // isRefInHistory('origin/feature/xyz') → success
-      .mockResolvedValueOnce({ stdout: 'def5678\n', stderr: '' } as any)
+      .mockResolvedValue({ stdout: '', stderr: '' } as any)
 
-    const result = await resolveGitRef('feature/xyz')
-    expect(result).toBe('origin/feature/xyz')
+    await ensureLocalRef('feature/xyz')
+
+    expect(spy).toHaveBeenCalledWith('git', [
+      'update-ref',
+      'refs/heads/feature/xyz',
+      'refs/remotes/origin/feature/xyz'
+    ])
   })
 
-  test('returns a full SHA as-is (SHAs resolve directly)', async () => {
+  test('does not throw when git update-ref fails (remote-tracking ref may not exist)', async () => {
     jest
       .spyOn(_gitExec, 'run')
-      // isRefInHistory('abc1234def5678') → success
-      .mockResolvedValueOnce({ stdout: 'abc1234def5678\n', stderr: '' } as any)
+      .mockRejectedValue(new Error('no remote-tracking ref') as any)
 
-    const result = await resolveGitRef('abc1234def5678')
-    expect(result).toBe('abc1234def5678')
-  })
-
-  test('returns a tag ref as-is when it resolves directly', async () => {
-    jest
-      .spyOn(_gitExec, 'run')
-      // isRefInHistory('v1.2.3') → success
-      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
-
-    const result = await resolveGitRef('v1.2.3')
-    expect(result).toBe('v1.2.3')
+    await expect(ensureLocalRef('main')).resolves.toBeUndefined()
   })
 
   test('throws when passed an invalid ref (injection prevention)', async () => {
-    await expect(resolveGitRef('-bad')).rejects.toThrow('Invalid git ref')
-    await expect(resolveGitRef('main;echo')).rejects.toThrow('Invalid git ref')
+    await expect(ensureLocalRef('-bad')).rejects.toThrow('Invalid git ref')
+    await expect(ensureLocalRef('main;echo')).rejects.toThrow('Invalid git ref')
+  })
+
+  test('logs a debug message on success', async () => {
+    const debugSpy = jest.spyOn(core, 'debug').mockImplementation(() => {})
+    jest
+      .spyOn(_gitExec, 'run')
+      .mockResolvedValue({ stdout: '', stderr: '' } as any)
+
+    await ensureLocalRef('main')
+
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Ensured local ref 'refs/heads/main'")
+    )
+  })
+
+  test('logs a debug message when update-ref fails', async () => {
+    const debugSpy = jest.spyOn(core, 'debug').mockImplementation(() => {})
+    jest
+      .spyOn(_gitExec, 'run')
+      .mockRejectedValue(new Error('not found') as any)
+
+    await ensureLocalRef('main')
+
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Could not create/update local ref 'refs/heads/main'")
+    )
   })
 })
 
@@ -767,6 +746,10 @@ describe('fetchRefUntilMergeBase', () => {
       .spyOn(_gitExec, 'run')
       // git fetch --depth=INITIAL_FETCH_DEPTH origin baseRef headRef
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(baseRef): git update-ref
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(headRef): git update-ref
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase: git merge-base → success
       .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
 
@@ -779,7 +762,17 @@ describe('fetchRefUntilMergeBase', () => {
       'main',
       'feature/xyz'
     ])
-    expect(spy).toHaveBeenCalledTimes(2)
+    expect(spy).toHaveBeenCalledWith('git', [
+      'update-ref',
+      'refs/heads/main',
+      'refs/remotes/origin/main'
+    ])
+    expect(spy).toHaveBeenCalledWith('git', [
+      'update-ref',
+      'refs/heads/feature/xyz',
+      'refs/remotes/origin/feature/xyz'
+    ])
+    expect(spy).toHaveBeenCalledTimes(4)
   })
 
   test('deepens depth when merge base is not found on the first attempt', async () => {
@@ -787,9 +780,17 @@ describe('fetchRefUntilMergeBase', () => {
       .spyOn(_gitExec, 'run')
       // iteration 1: fetch --depth=10 both refs
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(baseRef)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(headRef)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase → not found
       .mockRejectedValueOnce(new Error('no common ancestor') as never)
       // iteration 2: fetch --deepen=10 both refs
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(baseRef)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(headRef)
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase → found
       .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
@@ -803,14 +804,14 @@ describe('fetchRefUntilMergeBase', () => {
       'main',
       'feature/xyz'
     ])
-    expect(spy).toHaveBeenNthCalledWith(3, 'git', [
+    expect(spy).toHaveBeenNthCalledWith(5, 'git', [
       'fetch',
       `--deepen=${INITIAL_FETCH_DEPTH}`,
       'origin',
       'main',
       'feature/xyz'
     ])
-    expect(spy).toHaveBeenCalledTimes(4)
+    expect(spy).toHaveBeenCalledTimes(8)
   })
 
   test('stops and does not throw when MAX_FETCH_DEPTH is exceeded without finding merge base', async () => {
@@ -819,8 +820,10 @@ describe('fetchRefUntilMergeBase', () => {
     // then depth doubles to 640 > MAX and the loop exits — 6 fetch+check pairs total.
     // The first fetch uses --depth=, subsequent fetches use --deepen= (deepen by depth/2).
     const spy = jest.spyOn(_gitExec, 'run').mockImplementation(async (_cmd, args) => {
-      const isFetch = Array.isArray(args) && args[0] === 'fetch'
-      if (isFetch) return { stdout: '', stderr: '' } as any
+      const argList = args as string[]
+      const isFetch = argList[0] === 'fetch'
+      const isUpdateRef = argList[0] === 'update-ref'
+      if (isFetch || isUpdateRef) return { stdout: '', stderr: '' } as any
       throw new Error('no common ancestor')
     })
 
@@ -829,7 +832,7 @@ describe('fetchRefUntilMergeBase', () => {
     // Verify all fetch flag values are within bounds:
     // first uses --depth=INITIAL, rest use --deepen=(depth/2) which are all ≤ MAX/2
     const fetchCalls = spy.mock.calls.filter(
-      ([_cmd, args]) => Array.isArray(args) && args[0] === 'fetch'
+      ([_cmd, args]) => Array.isArray(args) && (args as string[])[0] === 'fetch'
     )
     for (const [_cmd, args] of fetchCalls) {
       const argList = args as string[]
@@ -851,36 +854,51 @@ describe('getGitDiff with missing base ref', () => {
 
   test('fetches ref from origin when merge base is not found', async () => {
     // Sequence of _gitExec.run calls:
-    //   1.  resolveGitRef(baseRef): rev-parse main^{commit}     → resolve (as-is)
-    //   2.  resolveGitRef(headRef): rev-parse feature/xyz^{commit} → resolve (as-is)
+    //   1.  ensureLocalRef(baseRef): git update-ref refs/heads/main         → success
+    //   2.  ensureLocalRef(headRef): git update-ref refs/heads/feature/xyz  → success
     //   3.  hasMergeBase (initial check)  → git merge-base  → reject (no merge base)
     //   4.  logGitDebugInfo(pre)          → git log         → resolve
     //   5.  logGitDebugInfo(pre)          → git branch -a   → resolve
     //   6.  logGitDebugInfo(pre)          → git merge-base  → resolve
     //   7.  fetchRefUntilMergeBase:       → git fetch depth=10 → resolve
-    //   8.  fetchRefUntilMergeBase:       → git merge-base  → resolve (found!)
-    //   9.  logGitDebugInfo(post)         → git log         → resolve
-    //   10. logGitDebugInfo(post)         → git branch -a   → resolve
-    //   11. logGitDebugInfo(post)         → git merge-base  → resolve
-    //   12. git diff                      → git diff        → resolve with empty diff
+    //   8.  fetchRefUntilMergeBase:       → ensureLocalRef(main)   update-ref → resolve
+    //   9.  fetchRefUntilMergeBase:       → ensureLocalRef(feature/xyz) update-ref → resolve
+    //   10. fetchRefUntilMergeBase:       → git merge-base  → resolve (found!)
+    //   11. logGitDebugInfo(post)         → git log         → resolve
+    //   12. logGitDebugInfo(post)         → git branch -a   → resolve
+    //   13. logGitDebugInfo(post)         → git merge-base  → resolve
+    //   14. git diff                      → git diff        → resolve with empty diff
     const spy = jest
       .spyOn(_gitExec, 'run')
-      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any) // resolveGitRef: rev-parse main
-      .mockResolvedValueOnce({ stdout: 'def5678\n', stderr: '' } as any) // resolveGitRef: rev-parse feature/xyz
-      .mockRejectedValueOnce(new Error('no merge base') as never)
-      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
-      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
-      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
-      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
-      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
-      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
-      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // ensureLocalRef main
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // ensureLocalRef feature/xyz
+      .mockRejectedValueOnce(new Error('no merge base') as never)          // initial hasMergeBase
+      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any) // git log
+      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)     // git branch -a
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // git merge-base (logGitDebugInfo pre)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // git fetch
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // ensureLocalRef main (after fetch)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // ensureLocalRef feature/xyz (after fetch)
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // hasMergeBase (found!)
+      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any) // git log (post)
+      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)     // git branch -a (post)
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // git merge-base (logGitDebugInfo post)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // git diff
 
     const result = await getGitDiff('main', 'feature/xyz')
 
     expect(result).toBe('')
+    // Verify local refs were created before the merge-base check
+    expect(spy).toHaveBeenCalledWith('git', [
+      'update-ref',
+      'refs/heads/main',
+      'refs/remotes/origin/main'
+    ])
+    expect(spy).toHaveBeenCalledWith('git', [
+      'update-ref',
+      'refs/heads/feature/xyz',
+      'refs/remotes/origin/feature/xyz'
+    ])
     // Verify fetch was invoked with both refs in a single call
     expect(spy).toHaveBeenCalledWith('git', [
       'fetch',
@@ -889,7 +907,7 @@ describe('getGitDiff with missing base ref', () => {
       'main',
       'feature/xyz'
     ])
-    // Verify diff used explicit refs, not HEAD
+    // Verify diff used bare branch names
     expect(spy).toHaveBeenCalledWith('git', [
       'diff',
       '--diff-filter=AMRCD',
@@ -898,19 +916,19 @@ describe('getGitDiff with missing base ref', () => {
       'main...feature/xyz',
       '--'
     ])
-    expect(spy).toHaveBeenCalledTimes(12)
+    expect(spy).toHaveBeenCalledTimes(14)
   })
 
   test('skips fetch when merge base already exists', async () => {
     // Sequence of _gitExec.run calls:
-    //   1. resolveGitRef(baseRef): rev-parse main^{commit}     → resolve (as-is)
-    //   2. resolveGitRef(headRef): rev-parse feature/xyz^{commit} → resolve (as-is)
+    //   1. ensureLocalRef(baseRef): git update-ref refs/heads/main        → success
+    //   2. ensureLocalRef(headRef): git update-ref refs/heads/feature/xyz → success
     //   3. hasMergeBase → git merge-base → resolve (merge base present)
     //   4. git diff     → git diff       → resolve with empty diff
     const spy = jest
       .spyOn(_gitExec, 'run')
-      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any) // resolveGitRef: rev-parse main
-      .mockResolvedValueOnce({ stdout: 'def5678\n', stderr: '' } as any) // resolveGitRef: rev-parse feature/xyz
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)    // ensureLocalRef main
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)    // ensureLocalRef feature/xyz
       .mockResolvedValueOnce({ stdout: 'abc123', stderr: '' } as any)
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
 
@@ -919,7 +937,7 @@ describe('getGitDiff with missing base ref', () => {
     expect(result).toBe('')
     // Verify fetch was NOT invoked
     expect(spy).not.toHaveBeenCalledWith('git', expect.arrayContaining(['fetch']))
-    // Verify diff used explicit refs, not HEAD
+    // Verify diff used bare branch names
     expect(spy).toHaveBeenCalledWith('git', [
       'diff',
       '--diff-filter=AMRCD',
@@ -931,61 +949,45 @@ describe('getGitDiff with missing base ref', () => {
     expect(spy).toHaveBeenCalledTimes(4)
   })
 
-  test('resolves bare branch names to origin/ prefix in CI (no local branches)', async () => {
-    // Simulate CI: bare names don't resolve, origin/ variants do.
+  test('creates local refs in CI environment where only remote-tracking refs exist', async () => {
+    // Simulate CI: ensureLocalRef succeeds (creates local branches from remote-tracking refs),
+    // then merge base is found immediately because local branches now exist.
     // Sequence:
-    //   1.  resolveGitRef('main'):        rev-parse main^{commit}          → reject
-    //   2.  resolveGitRef('main'):        rev-parse origin/main^{commit}   → resolve → 'origin/main'
-    //   3.  resolveGitRef('feature/xyz'): rev-parse feature/xyz^{commit}   → reject
-    //   4.  resolveGitRef('feature/xyz'): rev-parse origin/feature/xyz^{commit} → resolve → 'origin/feature/xyz'
-    //   5.  hasMergeBase(origin/main, origin/feature/xyz) → reject (shallow clone)
-    //   6.  logGitDebugInfo(pre): git log         → resolve
-    //   7.  logGitDebugInfo(pre): git branch -a   → resolve
-    //   8.  logGitDebugInfo(pre): git merge-base  → resolve
-    //   9.  fetchRefUntilMergeBase: git fetch origin main feature/xyz → resolve
-    //   10. fetchRefUntilMergeBase: hasMergeBase(origin/main, origin/feature/xyz) → resolve (found)
-    //   11. logGitDebugInfo(post): git log         → resolve
-    //   12. logGitDebugInfo(post): git branch -a   → resolve
-    //   13. logGitDebugInfo(post): git merge-base  → resolve
-    //   14. git diff origin/main...origin/feature/xyz → resolve
+    //   1. ensureLocalRef('main'):        git update-ref refs/heads/main ... → success
+    //   2. ensureLocalRef('feature/xyz'): git update-ref refs/heads/feature/xyz ... → success
+    //   3. hasMergeBase('main', 'feature/xyz') → success (local branches now exist)
+    //   4. git diff main...feature/xyz → success
     const spy = jest
       .spyOn(_gitExec, 'run')
-      .mockRejectedValueOnce(new Error('unknown ref') as never) // rev-parse main
-      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)  // rev-parse origin/main
-      .mockRejectedValueOnce(new Error('unknown ref') as never) // rev-parse feature/xyz
-      .mockResolvedValueOnce({ stdout: 'def\n', stderr: '' } as any)  // rev-parse origin/feature/xyz
-      .mockRejectedValueOnce(new Error('no merge base') as never)    // initial hasMergeBase
-      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any) // git log
-      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)     // git branch -a
-      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // git merge-base (logGitDebugInfo)
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // git fetch
-      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // hasMergeBase (found)
-      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any) // git log (post)
-      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)     // git branch -a (post)
-      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // git merge-base (post)
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // git diff
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)           // ensureLocalRef main
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)           // ensureLocalRef feature/xyz
+      .mockResolvedValueOnce({ stdout: 'abc123\n', stderr: '' } as any)  // hasMergeBase
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)           // git diff
 
     const result = await getGitDiff('main', 'feature/xyz')
 
     expect(result).toBe('')
-    // Fetch uses bare branch names (remote names)
-    expect(spy).toHaveBeenCalledWith('git', [
-      'fetch',
-      `--depth=${INITIAL_FETCH_DEPTH}`,
-      'origin',
-      'main',
-      'feature/xyz'
+    // Verify local refs created with correct update-ref args
+    expect(spy).toHaveBeenNthCalledWith(1, 'git', [
+      'update-ref',
+      'refs/heads/main',
+      'refs/remotes/origin/main'
     ])
-    // Diff uses resolved remote-tracking refs
+    expect(spy).toHaveBeenNthCalledWith(2, 'git', [
+      'update-ref',
+      'refs/heads/feature/xyz',
+      'refs/remotes/origin/feature/xyz'
+    ])
+    // Diff uses bare branch names (not origin/ prefix)
     expect(spy).toHaveBeenCalledWith('git', [
       'diff',
       '--diff-filter=AMRCD',
       '-M',
       '-U0',
-      'origin/main...origin/feature/xyz',
+      'main...feature/xyz',
       '--'
     ])
-    expect(spy).toHaveBeenCalledTimes(14)
+    expect(spy).toHaveBeenCalledTimes(4)
   })
 
   test('throws when baseRef is invalid', async () => {
@@ -1076,10 +1078,10 @@ describe('logGitDebugInfo', () => {
   test('is called by getGitDiff when merge base is not found initially', async () => {
     const runSpy = jest
       .spyOn(_gitExec, 'run')
-      // resolveGitRef(baseRef): rev-parse main^{commit} → resolve (as-is)
-      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
-      // resolveGitRef(headRef): rev-parse feature/xyz^{commit} → resolve (as-is)
-      .mockResolvedValueOnce({ stdout: 'def5678\n', stderr: '' } as any)
+      // ensureLocalRef(baseRef): git update-ref refs/heads/main → success
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(headRef): git update-ref refs/heads/feature/xyz → success
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase (initial check) → reject (no merge base)
       .mockRejectedValueOnce(new Error('no merge base') as never)
       // logGitDebugInfo (pre-fetch): git log
@@ -1089,6 +1091,10 @@ describe('logGitDebugInfo', () => {
       // logGitDebugInfo (pre-fetch): git merge-base
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
       // fetchRefUntilMergeBase: git fetch --depth=10
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // fetchRefUntilMergeBase: ensureLocalRef(main) after fetch
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // fetchRefUntilMergeBase: ensureLocalRef(feature/xyz) after fetch
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // fetchRefUntilMergeBase: hasMergeBase check → found
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
@@ -1123,10 +1129,10 @@ describe('logGitDebugInfo', () => {
   test('is NOT called by getGitDiff when merge base already exists', async () => {
     const runSpy = jest
       .spyOn(_gitExec, 'run')
-      // resolveGitRef(baseRef): rev-parse main^{commit} → resolve (as-is)
-      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
-      // resolveGitRef(headRef): rev-parse feature/xyz^{commit} → resolve (as-is)
-      .mockResolvedValueOnce({ stdout: 'def5678\n', stderr: '' } as any)
+      // ensureLocalRef(main) → success
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(feature/xyz) → success
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // hasMergeBase → resolve (merge base present)
       .mockResolvedValueOnce({ stdout: 'abc123', stderr: '' } as any)
       // git diff

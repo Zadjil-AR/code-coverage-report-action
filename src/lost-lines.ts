@@ -41,39 +41,47 @@ export function validateGitRef(ref: string): boolean {
 }
 
 /**
- * Resolve a bare branch name to a git ref that exists in the local
- * repository. Tries three strategies in order:
- *   1. The name as-is — works for SHAs, local branches, and tags.
- *   2. `origin/<name>` — the remote-tracking ref created by `actions/checkout`
- *      in GitHub Actions CI (the most common case).
- *   3. `remotes/origin/<name>` — the full remote-tracking ref path.
+ * Ensure that `ref` exists as a local branch by creating (or updating) a
+ * local branch reference that points at the corresponding remote-tracking ref
+ * `refs/remotes/origin/<ref>`.
  *
- * Returns the first candidate that resolves to a commit. Falls back to
- * returning the original name unchanged when none resolve (so callers still
- * get a usable value in edge-case git setups).
+ * In GitHub Actions CI, `actions/checkout` creates a shallow clone with a
+ * detached HEAD and only remote-tracking refs (`refs/remotes/origin/<branch>`).
+ * Bare branch names (e.g. `main`) therefore do not resolve, which causes
+ * `git merge-base` to fail.  Creating a local branch that mirrors the
+ * remote-tracking ref solves this without changing any subsequent git
+ * operations — they continue to use the bare branch names as usual.
  *
- * Expects a pre-validated ref (see validateGitRef).
+ * The function is deliberately lenient:
+ *   - If `refs/remotes/origin/<ref>` does not exist (e.g. in a local dev
+ *     environment where the remote-tracking ref was never fetched), the
+ *     command fails and the error is swallowed — the caller will surface a
+ *     clearer error when it actually tries to use the ref.
+ *   - If a local branch already exists, `update-ref` updates it in-place
+ *     so the local branch stays in sync with the remote-tracking ref.
+ *
+ * Throws when `ref` fails validation (see validateGitRef).
  */
-export async function resolveGitRef(ref: string): Promise<string> {
+export async function ensureLocalRef(ref: string): Promise<void> {
   if (!validateGitRef(ref)) {
     throw new Error(`Invalid git ref: ${JSON.stringify(ref)}`);
   }
-  const candidates = [ref, `origin/${ref}`, `remotes/origin/${ref}`];
-  for (const candidate of candidates) {
-    if (await isRefInHistory(candidate)) {
-      if (candidate !== ref) {
-        core.debug(`Resolved git ref '${ref}' → '${candidate}'`);
-      } else {
-        core.debug(`Git ref '${ref}' resolved as-is`);
-      }
-      return candidate;
-    }
+  try {
+    await _gitExec.run('git', [
+      'update-ref',
+      `refs/heads/${ref}`,
+      `refs/remotes/origin/${ref}`
+    ]);
+    core.debug(
+      `Ensured local ref 'refs/heads/${ref}' → 'refs/remotes/origin/${ref}'`
+    );
+  } catch {
+    core.debug(
+      `Could not create/update local ref 'refs/heads/${ref}' from ` +
+        `'refs/remotes/origin/${ref}'; the remote-tracking ref may not exist ` +
+        `or may not be available yet.`
+    );
   }
-  core.debug(
-    `Could not resolve git ref '${ref}' to a local ref; using as-is. ` +
-      `Tried: ${candidates.join(', ')}`
-  );
-  return ref;
 }
 
 /**
@@ -85,9 +93,11 @@ export async function resolveGitRef(ref: string): Promise<string> {
  * `headRef` must be the explicit head branch ref (not HEAD, which is a
  * detached merge commit in the GitHub Actions pull_request context).
  *
- * Both `baseRef` and `headRef` are resolved via `resolveGitRef` before use,
- * so that bare branch names (e.g. `main`) work in CI environments where only
- * remote-tracking refs (e.g. `origin/main`) exist locally.
+ * Before the first merge-base check, `ensureLocalRef` is called for both
+ * `baseRef` and `headRef`.  This creates local branches that mirror the
+ * corresponding remote-tracking refs (`refs/remotes/origin/<ref>`), so that
+ * bare branch names work in CI environments where `actions/checkout` only
+ * populates remote-tracking refs.
  *
  * If the merge base is not reachable in the local history (e.g. in a shallow
  * clone), both refs are fetched from origin until the merge base is available.
@@ -102,25 +112,27 @@ export async function getGitDiff(
   if (!validateGitRef(headRef)) {
     throw new Error(`Invalid git ref: ${JSON.stringify(headRef)}`);
   }
-  const resolvedBase = await resolveGitRef(baseRef);
-  const resolvedHead = await resolveGitRef(headRef);
-  core.debug(`Checking for merge base between ${resolvedBase} and ${resolvedHead}...`);
-  const mergeBaseExists = await hasMergeBase(resolvedBase, resolvedHead);
+  // Create local branch refs mirroring the remote-tracking refs so that bare
+  // branch names resolve in CI environments that only have remote-tracking refs.
+  await ensureLocalRef(baseRef);
+  await ensureLocalRef(headRef);
+  core.debug(`Checking for merge base between ${baseRef} and ${headRef}...`);
+  const mergeBaseExists = await hasMergeBase(baseRef, headRef);
   if (!mergeBaseExists) {
     core.debug(
-      `No merge base found between ${resolvedBase} and ${resolvedHead} — fetching from origin...`
+      `No merge base found between ${baseRef} and ${headRef} — fetching from origin...`
     );
-    await logGitDebugInfo(resolvedBase, resolvedHead);
-    await fetchRefUntilMergeBase(baseRef, headRef, resolvedBase, resolvedHead);
+    await logGitDebugInfo(baseRef, headRef);
+    await fetchRefUntilMergeBase(baseRef, headRef);
     core.debug(`Fetched ${baseRef} and ${headRef} from origin successfully.`);
-    await logGitDebugInfo(resolvedBase, resolvedHead);
+    await logGitDebugInfo(baseRef, headRef);
   }
   const { stdout } = await _gitExec.run('git', [
     'diff',
     '--diff-filter=AMRCD',
     '-M',
     '-U0',
-    `${resolvedBase}...${resolvedHead}`,
+    `${baseRef}...${headRef}`,
     '--'
   ]);
   return stdout;
@@ -244,19 +256,17 @@ export async function hasMergeBase(
  * Fetching them together also allows git to resolve the merge base in a single
  * network round-trip, which is equivalent to deepening both in parallel.
  *
- * `baseRef` and `headRef` are the bare remote branch names used for the fetch.
- * `resolvedBaseRef` and `resolvedHeadRef` (defaulting to the bare names) are
- * the locally-resolvable refs used for the `git merge-base` check — typically
- * `origin/<branch>` in CI environments where local branches do not exist.
+ * After each fetch, `ensureLocalRef` is called for both refs so that the
+ * local branch references are updated to point at the newly fetched commits.
+ * This keeps the bare branch names usable for the `git merge-base` check even
+ * in shallow-clone CI environments.
  *
  * Sequence: depth = INITIAL_FETCH_DEPTH, then doubles each iteration.
  * Expects pre-validated refs (see validateGitRef).
  */
 export async function fetchRefUntilMergeBase(
   baseRef: string,
-  headRef: string,
-  resolvedBaseRef = baseRef,
-  resolvedHeadRef = headRef
+  headRef: string
 ): Promise<void> {
   let depth = INITIAL_FETCH_DEPTH;
   let isFirst = true;
@@ -266,20 +276,24 @@ export async function fetchRefUntilMergeBase(
       `Fetching ${baseRef} and ${headRef} from origin with ${flag}...`
     );
     await _gitExec.run('git', ['fetch', flag, 'origin', baseRef, headRef]);
-    if (await hasMergeBase(resolvedBaseRef, resolvedHeadRef)) {
+    // Refresh local branch refs so the bare branch names point at the
+    // newly fetched (deeper) commits when hasMergeBase is called below.
+    await ensureLocalRef(baseRef);
+    await ensureLocalRef(headRef);
+    if (await hasMergeBase(baseRef, headRef)) {
       core.debug(
-        `Merge base found for ${resolvedBaseRef}...${resolvedHeadRef} at depth ${depth}.`
+        `Merge base found for ${baseRef}...${headRef} at depth ${depth}.`
       );
       return;
     }
     core.debug(
-      `Merge base not yet found for ${resolvedBaseRef}...${resolvedHeadRef} at depth ${depth}, deepening...`
+      `Merge base not yet found for ${baseRef}...${headRef} at depth ${depth}, deepening...`
     );
     isFirst = false;
     depth *= 2;
   }
   core.debug(
-    `Reached max fetch depth (${MAX_FETCH_DEPTH}) without finding merge base for ${resolvedBaseRef}...${resolvedHeadRef}.`
+    `Reached max fetch depth (${MAX_FETCH_DEPTH}) without finding merge base for ${baseRef}...${headRef}.`
   );
 }
 
