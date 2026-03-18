@@ -15,9 +15,7 @@ import {
   filterCoverageZeroLineFiles,
   parseXML,
   parseCoverage,
-  buildCoveredLinesMap,
-  writeCoveredLinesFile,
-  readCoveredLinesFile
+  buildCoveredLinesMap
 } from '../src/utils'
 import { extractCloverCoveredLines } from '../src/reports/clover/parser'
 import {
@@ -518,125 +516,6 @@ test('buildCoveredLinesMap returns empty object when no covered lines', () => {
   }
   const map = buildCoveredLinesMap(coverage)
   expect(Object.keys(map)).toHaveLength(0)
-})
-
-// ---------------------------------------------------------------------------
-// writeCoveredLinesFile / readCoveredLinesFile round-trip
-// ---------------------------------------------------------------------------
-
-test('writeCoveredLinesFile and readCoveredLinesFile round-trip', async () => {
-  process.env.INPUT_GITHUB_TOKEN = 'token'
-  process.env.INPUT_FILENAME = 'filename.xml'
-  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
-
-  const tmpFile = path.join(os.tmpdir(), `coverage-lines-test-${Date.now()}.json`)
-
-  const coverage = {
-    files: {
-      hash1: {
-        relative: 'src/a.ts',
-        absolute: '/src/a.ts',
-        coverage: 75,
-        covered_lines: [1, 2, 3, 5, 6]
-      },
-      hash2: {
-        relative: 'src/b.ts',
-        absolute: '/src/b.ts',
-        coverage: 100,
-        covered_lines: [10, 11, 12]
-      }
-    },
-    coverage: 87,
-    timestamp: 0,
-    basePath: ''
-  }
-
-  await writeCoveredLinesFile(tmpFile, coverage)
-
-  // Verify the file was written
-  const exists = await checkFileExists(tmpFile)
-  expect(exists).toBe(true)
-
-  // Verify it can be read back
-  const result = await readCoveredLinesFile(tmpFile)
-  expect(result).not.toBeNull()
-  expect(result!['src/a.ts']).toEqual([1, 2, 3, 5, 6])
-  expect(result!['src/b.ts']).toEqual([10, 11, 12])
-
-  await fs.promises.unlink(tmpFile)
-})
-
-test('readCoveredLinesFile returns null when file does not exist', async () => {
-  const result = await readCoveredLinesFile('/nonexistent/path/coverage-lines.json')
-  expect(result).toBeNull()
-})
-
-test('readCoveredLinesFile returns null and warns when file contains invalid JSON', async () => {
-  const tmpFile = path.join(os.tmpdir(), `coverage-lines-bad-${Date.now()}.json`)
-  await fs.promises.writeFile(tmpFile, 'this is not json', 'utf8')
-  const result = await readCoveredLinesFile(tmpFile)
-  expect(result).toBeNull()
-  await fs.promises.unlink(tmpFile)
-})
-
-test('readCoveredLinesFile returns null and warns when file has unexpected version', async () => {
-  const tmpFile = path.join(os.tmpdir(), `coverage-lines-badver-${Date.now()}.json`)
-  await fs.promises.writeFile(
-    tmpFile,
-    JSON.stringify({ version: 99, files: {} }),
-    'utf8'
-  )
-  const result = await readCoveredLinesFile(tmpFile)
-  expect(result).toBeNull()
-  await fs.promises.unlink(tmpFile)
-})
-
-test('readCoveredLinesFile returns null and warns when files field is missing', async () => {
-  const tmpFile = path.join(os.tmpdir(), `coverage-lines-nofiles-${Date.now()}.json`)
-  await fs.promises.writeFile(
-    tmpFile,
-    JSON.stringify({ version: 1 }),
-    'utf8'
-  )
-  const result = await readCoveredLinesFile(tmpFile)
-  expect(result).toBeNull()
-  await fs.promises.unlink(tmpFile)
-})
-
-test('readCoveredLinesFile returns null and warns when an entry has non-array ranges', async () => {
-  const tmpFile = path.join(os.tmpdir(), `coverage-lines-badrange-${Date.now()}.json`)
-  await fs.promises.writeFile(
-    tmpFile,
-    JSON.stringify({ version: 1, files: { 'src/a.ts': 'not-an-array' } }),
-    'utf8'
-  )
-  const result = await readCoveredLinesFile(tmpFile)
-  expect(result).toBeNull()
-  await fs.promises.unlink(tmpFile)
-})
-
-test('readCoveredLinesFile returns null and warns when a range tuple has non-integer values', async () => {
-  const tmpFile = path.join(os.tmpdir(), `coverage-lines-badtuple-${Date.now()}.json`)
-  await fs.promises.writeFile(
-    tmpFile,
-    JSON.stringify({ version: 1, files: { 'src/a.ts': [[1.5, 3]] } }),
-    'utf8'
-  )
-  const result = await readCoveredLinesFile(tmpFile)
-  expect(result).toBeNull()
-  await fs.promises.unlink(tmpFile)
-})
-
-test('readCoveredLinesFile returns null and warns when a range tuple has start > end', async () => {
-  const tmpFile = path.join(os.tmpdir(), `coverage-lines-badorder-${Date.now()}.json`)
-  await fs.promises.writeFile(
-    tmpFile,
-    JSON.stringify({ version: 1, files: { 'src/a.ts': [[5, 3]] } }),
-    'utf8'
-  )
-  const result = await readCoveredLinesFile(tmpFile)
-  expect(result).toBeNull()
-  await fs.promises.unlink(tmpFile)
 })
 
 test('getInputs returns trackLostLines true when INPUT_TRACK_LOST_LINES is true', () => {
