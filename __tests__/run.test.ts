@@ -24,8 +24,6 @@ jest.mock('../src/utils', () => {
     downloadArtifacts: jest.fn(),
     parseCoverage: jest.fn(),
     uploadArtifacts: jest.fn(),
-    writeCoveredLinesFile: jest.fn(),
-    readCoveredLinesFile: jest.fn(),
     buildCoveredLinesMap: jest.fn()
   }
 })
@@ -45,8 +43,6 @@ const mockCheckFileExists = jest.mocked(utilsModule.checkFileExists)
 const mockDownloadArtifacts = jest.mocked(utilsModule.downloadArtifacts)
 const mockParseCoverage = jest.mocked(utilsModule.parseCoverage)
 const mockUploadArtifacts = jest.mocked(utilsModule.uploadArtifacts)
-const mockWriteCoveredLinesFile = jest.mocked(utilsModule.writeCoveredLinesFile)
-const mockReadCoveredLinesFile = jest.mocked(utilsModule.readCoveredLinesFile)
 const mockBuildCoveredLinesMap = jest.mocked(utilsModule.buildCoveredLinesMap)
 const mockGetGitDiff = jest.mocked(lostLinesModule.getGitDiff)
 const mockParseGitDiff = jest.mocked(lostLinesModule.parseGitDiff)
@@ -119,8 +115,6 @@ beforeEach(async () => {
   mockUploadArtifacts
     .mockReset()
     .mockResolvedValue({ id: 1, size: 100, artifactItems: [] } as any)
-  mockWriteCoveredLinesFile.mockReset().mockResolvedValue(undefined)
-  mockReadCoveredLinesFile.mockReset().mockResolvedValue(null)
   mockBuildCoveredLinesMap.mockReset().mockReturnValue({})
   mockGetGitDiff.mockReset().mockResolvedValue('')
   mockParseGitDiff.mockReset().mockReturnValue(new Map())
@@ -340,39 +334,7 @@ test('run: exception from downloadArtifacts calls setFailed', async () => {
 // track_lost_lines tests
 // ---------------------------------------------------------------------------
 
-test('run: push with track_lost_lines=true writes covered lines and includes in upload', async () => {
-  process.env.GITHUB_EVENT_NAME = 'push'
-  process.env.GITHUB_REF_NAME = 'main'
-  process.env.INPUT_TRACK_LOST_LINES = 'true'
-
-  mockParseCoverage.mockResolvedValue(mockCoverage as any)
-
-  await run()
-
-  expect(mockWriteCoveredLinesFile).toHaveBeenCalledWith(
-    'coverage-lines.json',
-    expect.anything()
-  )
-  expect(mockUploadArtifacts).toHaveBeenCalledWith(
-    ['coverage.xml', 'coverage-lines.json'],
-    'main'
-  )
-  delete process.env.INPUT_TRACK_LOST_LINES
-})
-
-test('run: push without track_lost_lines does not write covered lines', async () => {
-  process.env.GITHUB_EVENT_NAME = 'push'
-  process.env.GITHUB_REF_NAME = 'main'
-
-  mockParseCoverage.mockResolvedValue(mockCoverage as any)
-
-  await run()
-
-  expect(mockWriteCoveredLinesFile).not.toHaveBeenCalled()
-  expect(mockUploadArtifacts).toHaveBeenCalledWith(['coverage.xml'], 'main')
-})
-
-test('run: pull_request with track_lost_lines=true and covered lines calls lost lines analysis', async () => {
+test('run: pull_request with track_lost_lines=true calls lost lines analysis', async () => {
   process.env.GITHUB_EVENT_NAME = 'pull_request'
   process.env.GITHUB_BASE_REF = 'main'
   process.env.INPUT_TRACK_LOST_LINES = 'true'
@@ -381,18 +343,18 @@ test('run: pull_request with track_lost_lines=true and covered lines calls lost 
   mockParseCoverage
     .mockResolvedValueOnce(mockCoverage as any)
     .mockResolvedValueOnce(mockCoverage as any)
-  mockReadCoveredLinesFile.mockResolvedValue({ 'src/foo.ts': [1, 2, 3] })
+  mockBuildCoveredLinesMap.mockReturnValue({ 'src/foo.ts': [1, 2, 3] })
   mockGetGitDiff.mockResolvedValue('')
 
   await run()
 
-  expect(mockReadCoveredLinesFile).toHaveBeenCalled()
+  expect(mockBuildCoveredLinesMap).toHaveBeenCalled()
   expect(mockGetGitDiff).toHaveBeenCalledWith('main')
   expect(mockComputeLostLinesReport).toHaveBeenCalled()
   delete process.env.INPUT_TRACK_LOST_LINES
 })
 
-test('run: pull_request with track_lost_lines=true but no covered lines file warns and skips', async () => {
+test('run: pull_request with track_lost_lines=true but no covered lines warns and skips', async () => {
   process.env.GITHUB_EVENT_NAME = 'pull_request'
   process.env.GITHUB_BASE_REF = 'main'
   process.env.INPUT_TRACK_LOST_LINES = 'true'
@@ -401,13 +363,13 @@ test('run: pull_request with track_lost_lines=true but no covered lines file war
   mockParseCoverage
     .mockResolvedValueOnce(mockCoverage as any)
     .mockResolvedValueOnce(mockCoverage as any)
-  mockReadCoveredLinesFile.mockResolvedValue(null) // no covered-lines file
+  mockBuildCoveredLinesMap.mockReturnValue({}) // no covered lines
 
   const warnSpy = jest.spyOn(core, 'warning').mockImplementation((() => {}) as any)
 
   await run()
 
-  expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('coverage-lines.json'))
+  expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('No covered_lines'))
   expect(mockComputeLostLinesReport).not.toHaveBeenCalled()
   warnSpy.mockRestore()
   delete process.env.INPUT_TRACK_LOST_LINES
@@ -422,7 +384,7 @@ test('run: pull_request with track_lost_lines=true when git diff fails warns and
   mockParseCoverage
     .mockResolvedValueOnce(mockCoverage as any)
     .mockResolvedValueOnce(mockCoverage as any)
-  mockReadCoveredLinesFile.mockResolvedValue({ 'src/foo.ts': [1, 2, 3] })
+  mockBuildCoveredLinesMap.mockReturnValue({ 'src/foo.ts': [1, 2, 3] })
   mockGetGitDiff.mockRejectedValue(new Error('git not found'))
 
   const warnSpy = jest.spyOn(core, 'warning').mockImplementation((() => {}) as any)
@@ -433,49 +395,6 @@ test('run: pull_request with track_lost_lines=true when git diff fails warns and
   expect(mockComputeLostLinesReport).not.toHaveBeenCalled()
   warnSpy.mockRestore()
   delete process.env.INPUT_TRACK_LOST_LINES
-})
-
-test('run: pull_request with track_lost_lines=true uploads covered lines for head branch', async () => {
-  process.env.GITHUB_EVENT_NAME = 'pull_request'
-  process.env.GITHUB_BASE_REF = 'main'
-  process.env.GITHUB_HEAD_REF = 'feature/my-branch'
-  process.env.INPUT_TRACK_LOST_LINES = 'true'
-
-  mockDownloadArtifacts.mockResolvedValue('/tmp/test-artifacts')
-  mockParseCoverage
-    .mockResolvedValueOnce(mockCoverage as any)
-    .mockResolvedValueOnce(mockCoverage as any)
-  mockReadCoveredLinesFile.mockResolvedValue({ 'src/foo.ts': [1, 2, 3] })
-  mockGetGitDiff.mockResolvedValue('')
-
-  await run()
-
-  expect(mockWriteCoveredLinesFile).toHaveBeenCalledWith(
-    'coverage-lines.json',
-    expect.anything()
-  )
-  expect(mockUploadArtifacts).toHaveBeenCalledWith(
-    ['coverage.xml', 'coverage-lines.json'],
-    'feature/my-branch'
-  )
-  delete process.env.INPUT_TRACK_LOST_LINES
-  delete process.env.GITHUB_HEAD_REF
-})
-
-test('run: pull_request without track_lost_lines does not upload covered lines for head branch', async () => {
-  process.env.GITHUB_EVENT_NAME = 'pull_request'
-  process.env.GITHUB_BASE_REF = 'main'
-  process.env.GITHUB_HEAD_REF = 'feature/my-branch'
-
-  mockDownloadArtifacts.mockResolvedValue('/tmp/test-artifacts')
-  mockParseCoverage
-    .mockResolvedValueOnce(mockCoverage as any)
-    .mockResolvedValueOnce(mockCoverage as any)
-
-  await run()
-
-  expect(mockWriteCoveredLinesFile).not.toHaveBeenCalled()
-  delete process.env.GITHUB_HEAD_REF
 })
 
 test('run: pull_request with track_lost_lines=true and exclude paths filters base covered lines map', async () => {
@@ -490,7 +409,7 @@ test('run: pull_request with track_lost_lines=true and exclude paths filters bas
     .mockResolvedValueOnce(mockCoverage as any)
     .mockResolvedValueOnce(mockCoverage as any)
   // Simulate base map with one excluded file
-  mockReadCoveredLinesFile.mockResolvedValue({
+  mockBuildCoveredLinesMap.mockReturnValue({
     'src/foo.ts': [1, 2, 3],
     'tests/foo.test.ts': [4, 5]
   })
