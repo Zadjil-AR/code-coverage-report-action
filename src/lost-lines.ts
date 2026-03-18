@@ -122,26 +122,6 @@ export async function getGitDiff(
 }
 
 /**
- * Return true when `ref` resolves to a commit in the local repository.
- * Uses `git rev-parse --verify <ref>^{commit}` which exits 0 on success and
- * non-zero when the ref is unknown — without writing to stderr.
- * Expects a pre-validated ref (see validateGitRef).
- */
-export async function isRefInHistory(ref: string): Promise<boolean> {
-  try {
-    await _gitExec.run('git', [
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      `${ref}^{commit}`
-    ]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Emit debug information about the current git state to help diagnose why a
  * merge base could not be found.
  *
@@ -425,7 +405,7 @@ export interface LostLinePair {
 export interface ComputeLostLinesResult {
   /** Lines that survived in the head but are no longer covered. */
   lostPairs: LostLinePair[];
-  /** Count of base covered lines that still exist in the head (denominator). */
+  /** Count of base covered lines whose corresponding head line was not deleted (denominator). */
   survivingCount: number;
 }
 
@@ -461,27 +441,6 @@ export function computeLostLines(
   }
 
   return { lostPairs, survivingCount };
-}
-
-/**
- * Convert a number[] of covered lines into compact [[start,end]] range tuples
- * suitable for JSON serialisation.
- */
-export function coveredLinesToRanges(lines: number[]): [number, number][] {
-  return linesToRanges(lines).map(({ start, end }) => [start, end]);
-}
-
-/**
- * Convert compact [[start,end]] range tuples back into a flat sorted number[].
- */
-export function rangesToLines(ranges: [number, number][]): number[] {
-  const lines: number[] = [];
-  for (const [start, end] of ranges) {
-    for (let n = start; n <= end; n++) {
-      lines.push(n);
-    }
-  }
-  return lines;
 }
 
 /**

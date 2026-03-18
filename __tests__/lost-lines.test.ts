@@ -5,10 +5,7 @@ import {
   linesToRanges,
   computeLostLines,
   computeLostLinesReport,
-  coveredLinesToRanges,
-  rangesToLines,
   getGitDiff,
-  isRefInHistory,
   fetchRef,
   logGitDebugInfo,
   hasMergeBase,
@@ -330,33 +327,6 @@ describe('computeLostLines', () => {
 })
 
 // ---------------------------------------------------------------------------
-// coveredLinesToRanges / rangesToLines
-// ---------------------------------------------------------------------------
-
-describe('coveredLinesToRanges and rangesToLines', () => {
-  test('round-trip: lines → ranges → lines', () => {
-    const lines = [1, 2, 3, 5, 6, 10]
-    const ranges = coveredLinesToRanges(lines)
-    expect(ranges).toEqual([
-      [1, 3],
-      [5, 6],
-      [10, 10]
-    ])
-    const back = rangesToLines(ranges)
-    expect(back).toEqual(lines)
-  })
-
-  test('single line round-trip', () => {
-    const lines = [7]
-    expect(rangesToLines(coveredLinesToRanges(lines))).toEqual(lines)
-  })
-
-  test('empty input', () => {
-    expect(coveredLinesToRanges([])).toEqual([])
-    expect(rangesToLines([])).toEqual([])
-  })
-})
-
 // ---------------------------------------------------------------------------
 // computeLostLinesReport
 // ---------------------------------------------------------------------------
@@ -579,24 +549,6 @@ test('getGitDiff with valid ref returns a string (integration)', async () => {
   // HEAD...HEAD diff is always empty but executes the git command
   const result = await getGitDiff('HEAD', 'HEAD')
   expect(typeof result).toBe('string')
-})
-
-// ---------------------------------------------------------------------------
-// isRefInHistory (integration)
-// ---------------------------------------------------------------------------
-
-describe('isRefInHistory', () => {
-  test('returns true for HEAD (always present in any git repo)', async () => {
-    const result = await isRefInHistory('HEAD')
-    expect(result).toBe(true)
-  })
-
-  test('returns false for a ref that does not exist', async () => {
-    const result = await isRefInHistory(
-      'this-branch-does-not-exist-xyz987654'
-    )
-    expect(result).toBe(false)
-  })
 })
 
 // ---------------------------------------------------------------------------

@@ -305,7 +305,7 @@ export function formatLostCoverage(
   lostCount: number,
   lostPercentage: number
 ): string {
-  return `🔴 ${lostPercentage}% (${lostCount} line${lostCount === 1 ? '' : 's'})`;
+  return `🔴 -${lostPercentage}% (${lostCount} line${lostCount === 1 ? '' : 's'})`;
 }
 
 /**
