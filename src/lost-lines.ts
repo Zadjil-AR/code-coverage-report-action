@@ -93,14 +93,9 @@ export async function ensureLocalRef(ref: string): Promise<void> {
  * `headRef` must be the explicit head branch ref (not HEAD, which is a
  * detached merge commit in the GitHub Actions pull_request context).
  *
- * Before the first merge-base check, `ensureLocalRef` is called for both
- * `baseRef` and `headRef`.  This creates local branches that mirror the
- * corresponding remote-tracking refs (`refs/remotes/origin/<ref>`), so that
- * bare branch names work in CI environments where `actions/checkout` only
- * populates remote-tracking refs.
- *
- * If the merge base is not reachable in the local history (e.g. in a shallow
- * clone), both refs are fetched from origin until the merge base is available.
+ * `fetchRefUntilMergeBase` is always called before the diff so that local
+ * branches are created from the remote-tracking refs and enough history is
+ * fetched for the merge base to be reachable.
  */
 export async function getGitDiff(
   baseRef: string,
@@ -112,21 +107,9 @@ export async function getGitDiff(
   if (!validateGitRef(headRef)) {
     throw new Error(`Invalid git ref: ${JSON.stringify(headRef)}`);
   }
-  // Create local branch refs mirroring the remote-tracking refs so that bare
-  // branch names resolve in CI environments that only have remote-tracking refs.
-  await ensureLocalRef(baseRef);
-  await ensureLocalRef(headRef);
-  core.debug(`Checking for merge base between ${baseRef} and ${headRef}...`);
-  const mergeBaseExists = await hasMergeBase(baseRef, headRef);
-  if (!mergeBaseExists) {
-    core.debug(
-      `No merge base found between ${baseRef} and ${headRef} — fetching from origin...`
-    );
-    await logGitDebugInfo(baseRef, headRef);
-    await fetchRefUntilMergeBase(baseRef, headRef);
-    core.debug(`Fetched ${baseRef} and ${headRef} from origin successfully.`);
-    await logGitDebugInfo(baseRef, headRef);
-  }
+  await fetchRefUntilMergeBase(baseRef, headRef);
+  core.debug(`Fetched ${baseRef} and ${headRef} from origin successfully.`);
+  await logGitDebugInfo(baseRef, headRef);
   const { stdout } = await _gitExec.run('git', [
     'diff',
     '--diff-filter=AMRCD',
