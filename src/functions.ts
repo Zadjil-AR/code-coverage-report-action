@@ -3,7 +3,6 @@ import {
   buildCoveredLinesMap,
   checkFileExists,
   colorizePercentageByThreshold,
-  COVERED_LINES_FILENAME,
   downloadArtifacts,
   filterCoverageByExcludePaths,
   filterCoverageZeroLineFiles,
@@ -13,10 +12,8 @@ import {
   getTopDirFromFile,
   isPathExcluded,
   parseCoverage,
-  readCoveredLinesFile,
   roundPercentage,
-  uploadArtifacts,
-  writeCoveredLinesFile
+  uploadArtifacts
 } from './utils';
 import {
   Coverage,
@@ -89,18 +86,6 @@ export async function run(): Promise<void> {
           baseCoverage = filterCoverageZeroLineFiles(baseCoverage);
         }
 
-        // Upload covered-lines JSON for the PR head branch when track_lost_lines is enabled,
-        // so this PR can serve as the base for a subsequent PR in a chain.
-        if (trackLostLines && GITHUB_HEAD_REF) {
-          const filesToUpload: string[] = [filename];
-          core.info(`Writing ${COVERED_LINES_FILENAME} for PR head branch...`);
-          await writeCoveredLinesFile(COVERED_LINES_FILENAME, headCoverage);
-          filesToUpload.push(COVERED_LINES_FILENAME);
-          core.info(`Uploading PR head artifact for ${GITHUB_HEAD_REF}...`);
-          await uploadArtifacts(filesToUpload, GITHUB_HEAD_REF);
-          core.info(`Complete`);
-        }
-
         core.info(`Complete`);
 
         //Base doesn't have an artifact
@@ -116,11 +101,11 @@ export async function run(): Promise<void> {
           return;
         }
 
-        // Compute lost lines when the feature is enabled and base artifact is present
+        // Compute lost lines when the feature is enabled and base coverage is available
         let lostLinesReport: LostLinesReport | undefined;
-        if (trackLostLines && artifactPath !== null) {
+        if (trackLostLines && baseCoverage !== null) {
           lostLinesReport = await computePrLostLinesReport(
-            artifactPath,
+            baseCoverage,
             GITHUB_BASE_REF,
             GITHUB_HEAD_REF,
             headCoverage,
@@ -156,14 +141,6 @@ export async function run(): Promise<void> {
             headCoverage = filterCoverageZeroLineFiles(headCoverage);
           }
 
-          // Write covered-lines JSON when track_lost_lines is enabled
-          if (trackLostLines && headCoverage != null) {
-            core.info(`Writing ${COVERED_LINES_FILENAME}...`);
-            await writeCoveredLinesFile(COVERED_LINES_FILENAME, headCoverage);
-            filesToUpload.push(COVERED_LINES_FILENAME);
-            core.info(`Complete`);
-          }
-
           core.info(`Uploading ${filesToUpload.join(', ')}...`);
           await uploadArtifacts(filesToUpload, GITHUB_REF_NAME);
           core.debug(
@@ -190,31 +167,31 @@ export async function run(): Promise<void> {
 
 /**
  * Compute the lost lines report for a PR by:
- * 1. Reading the base covered-lines JSON from the artifact directory.
+ * 1. Extracting covered lines from the base Coverage object.
  * 2. Filtering out files matching excludePaths (consistent with coverage filtering).
  * 3. Running git diff to map old → new line numbers.
  * 4. Comparing base covered lines against head covered lines.
  *
- * Returns undefined when the base artifact doesn't include covered-lines data
- * (e.g. it was uploaded before the feature was introduced).
+ * Returns undefined when the base coverage doesn't include covered_lines data
+ * (e.g. track_lost_lines was not enabled).
  */
 async function computePrLostLinesReport(
-  artifactPath: string,
+  baseCoverage: Coverage,
   baseRef: string,
   headRef: string,
   headCoverage: Coverage,
   excludePaths: string[]
 ): Promise<LostLinesReport | undefined> {
   core.debug(
-    `computePrLostLinesReport: artifactPath=${artifactPath}, baseRef=${baseRef}, headRef=${headRef}, excludePaths=${excludePaths.join(', ')}`
+    `computePrLostLinesReport: baseRef=${baseRef}, headRef=${headRef}, excludePaths=${excludePaths.join(', ')}`
   );
-  const coveredLinesFilePath = path.join(artifactPath, COVERED_LINES_FILENAME);
-  const rawBaseCoveredLinesMap =
-    await readCoveredLinesFile(coveredLinesFilePath);
 
-  if (rawBaseCoveredLinesMap === null) {
+  // Extract covered lines directly from base coverage object
+  const rawBaseCoveredLinesMap = buildCoveredLinesMap(baseCoverage);
+
+  if (Object.keys(rawBaseCoveredLinesMap).length === 0) {
     core.warning(
-      `${COVERED_LINES_FILENAME} not found in base artifact. ` +
+      `No covered_lines data found in base coverage. ` +
         `Lost lines analysis skipped. ` +
         `Ensure track_lost_lines=true was set when the base branch artifact was created.`
     );
