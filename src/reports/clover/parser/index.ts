@@ -152,7 +152,8 @@ export function extractCloverCoveredLines(
 function processCoverageMetrics(metrics: FileMetrics): number {
   const coveredConditionals =
     Number.parseInt(metrics['@_coveredconditionals'], 10) || 0;
-  const coveredStatements = Number.parseInt(metrics['@_coveredstatements'], 10) || 0;
+  const coveredStatements =
+    Number.parseInt(metrics['@_coveredstatements'], 10) || 0;
   const coveredMethods = Number.parseInt(metrics['@_coveredmethods'], 10) || 0;
   const conditionals = Number.parseInt(metrics['@_conditionals'], 10) || 0;
   const statements = Number.parseInt(metrics['@_statements'], 10) || 0;

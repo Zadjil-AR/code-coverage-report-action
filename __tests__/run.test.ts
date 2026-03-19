@@ -349,7 +349,7 @@ test('run: pull_request with track_lost_lines=true calls lost lines analysis', a
   await run()
 
   expect(mockBuildCoveredLinesMap).toHaveBeenCalled()
-  expect(mockGetGitDiff).toHaveBeenCalledWith('main')
+  expect(mockGetGitDiff).toHaveBeenCalledWith('main', '', 10, 512)
   expect(mockComputeLostLinesReport).toHaveBeenCalled()
   delete process.env.INPUT_TRACK_LOST_LINES
 })

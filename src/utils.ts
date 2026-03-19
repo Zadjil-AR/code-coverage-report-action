@@ -25,7 +25,7 @@ export async function checkFileExists(filename: string): Promise<boolean> {
   try {
     await access(filename, fsConstants.F_OK);
     return true;
-  } catch (_e) {
+  } catch {
     //
   }
   return false;
