@@ -190,6 +190,8 @@ test('getInputs', () => {
     excludePaths: [],
     onlyListChangedFiles: false,
     trackLostLines: false,
+    lostLinesMergeBaseSearchSteps: 10,
+    lostLinesMergeBaseMaxDepth: 512,
     //This is a cheat
     withBaseCoverageTemplate: f.withBaseCoverageTemplate,
     withoutBaseCoverageTemplate: f.withoutBaseCoverageTemplate
@@ -528,4 +530,33 @@ test('getInputs returns trackLostLines true when INPUT_TRACK_LOST_LINES is true'
   expect(f.trackLostLines).toBe(true)
 
   delete process.env.INPUT_TRACK_LOST_LINES
+})
+
+test('getInputs returns custom lostLinesMergeBaseSearchSteps and lostLinesMergeBaseMaxDepth', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = '20'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = '256'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(20)
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(256)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
+})
+
+test('getInputs clamps lostLinesMergeBaseMaxDepth to at least lostLinesMergeBaseSearchSteps', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = '50'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = '10'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBeGreaterThanOrEqual(f.lostLinesMergeBaseSearchSteps)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
 })

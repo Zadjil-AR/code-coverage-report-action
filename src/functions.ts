@@ -30,7 +30,6 @@ import { computeLostLinesReport, getGitDiff, parseGitDiff } from './lost-lines';
 
 export async function run(): Promise<void> {
   try {
-    core.info(`Running code coverage report`);
     const filename = core.getInput('filename');
 
     if (!(await checkFileExists(filename))) {
@@ -209,8 +208,15 @@ async function computePrLostLinesReport(
 
   core.info(`Running git diff for lost lines analysis...`);
   let diffOutput: string;
+  const { lostLinesMergeBaseSearchSteps, lostLinesMergeBaseMaxDepth } =
+    getInputs();
   try {
-    diffOutput = await getGitDiff(baseRef, headRef);
+    diffOutput = await getGitDiff(
+      baseRef,
+      headRef,
+      lostLinesMergeBaseSearchSteps,
+      lostLinesMergeBaseMaxDepth
+    );
   } catch (err: any) {
     core.warning(
       `git diff failed: ${err.message}. Lost lines analysis skipped.`
@@ -276,7 +282,7 @@ function buildLostLinesByFile(
 
 /**
  * Format a lost-coverage value for display in the table.
- * Example: "🔴 5% (3 lines)"
+ * Example: "🔴 -5% (3 lines)"
  */
 export function formatLostCoverage(
   lostCount: number,

@@ -69,6 +69,8 @@ export interface Inputs {
   showCoverageByParentDir: boolean;
   excludePaths: string[];
   trackLostLines: boolean;
+  lostLinesMergeBaseSearchSteps: number;
+  lostLinesMergeBaseMaxDepth: number;
 }
 
 export interface Files {

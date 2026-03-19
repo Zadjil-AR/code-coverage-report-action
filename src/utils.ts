@@ -513,10 +513,10 @@ export function getInputs(): Inputs {
     ) * -1;
 
   const failOnNegativeDifference =
-    core.getInput('fail_on_negative_difference') === 'true' ? true : false;
+    core.getInput('fail_on_negative_difference') === 'true';
 
   const onlyListChangedFiles =
-    core.getInput('only_list_changed_files') === 'true' ? true : false;
+    core.getInput('only_list_changed_files') === 'true';
 
   const negativeDifferenceBy =
     core.getInput('negative_difference_by') === 'overall'
@@ -560,6 +560,22 @@ export function getInputs(): Inputs {
 
   const trackLostLines = core.getInput('track_lost_lines') === 'true';
 
+  const lostLinesMergeBaseSearchSteps = Math.max(
+    1,
+    Number.parseInt(
+      core.getInput('lost_lines_merge_base_search_steps') || '10',
+      10
+    ) || 10
+  );
+
+  const lostLinesMergeBaseMaxDepth = Math.max(
+    lostLinesMergeBaseSearchSteps,
+    Number.parseInt(
+      core.getInput('lost_lines_merge_base_max_depth') || '512',
+      10
+    ) || 512
+  );
+
   return {
     token,
     filename,
@@ -582,7 +598,9 @@ export function getInputs(): Inputs {
     coverageDepth,
     showCoverageByParentDir,
     excludePaths,
-    trackLostLines
+    trackLostLines,
+    lostLinesMergeBaseSearchSteps,
+    lostLinesMergeBaseMaxDepth
   };
 }
 

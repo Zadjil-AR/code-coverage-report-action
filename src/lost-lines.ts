@@ -99,7 +99,9 @@ export async function ensureLocalRef(ref: string): Promise<void> {
  */
 export async function getGitDiff(
   baseRef: string,
-  headRef: string
+  headRef: string,
+  searchSteps: number = INITIAL_FETCH_DEPTH,
+  maxDepth: number = MAX_FETCH_DEPTH
 ): Promise<string> {
   if (!validateGitRef(baseRef)) {
     throw new Error(`Invalid git ref: ${JSON.stringify(baseRef)}`);
@@ -107,7 +109,7 @@ export async function getGitDiff(
   if (!validateGitRef(headRef)) {
     throw new Error(`Invalid git ref: ${JSON.stringify(headRef)}`);
   }
-  await fetchRefUntilMergeBase(baseRef, headRef);
+  await fetchRefUntilMergeBase(baseRef, headRef, searchSteps, maxDepth);
   core.debug(`Fetched ${baseRef} and ${headRef} from origin successfully.`);
   await logGitDebugInfo(baseRef, headRef);
   const { stdout } = await _gitExec.run('git', [
@@ -170,21 +172,6 @@ export async function logGitDebugInfo(
   }
 }
 
-/**
- * Fetch a single ref from the `origin` remote with a shallow depth of 1.
- * Uses execFile to avoid shell injection.
- * Expects a pre-validated ref (see validateGitRef).
- */
-export async function fetchRef(ref: string): Promise<void> {
-  // prettier-ignore
-  await _gitExec.run('git', [
-    'fetch',
-    '--depth=1',
-    'origin',
-    ref
-  ]);
-}
-
 /** Initial fetch depth for incremental deepening. */
 export const INITIAL_FETCH_DEPTH = 10;
 
@@ -212,7 +199,7 @@ export async function hasMergeBase(
 /**
  * Fetch both `baseRef` and `headRef` from origin using incremental depth
  * doubling until the merge base between them is reachable in the local
- * history, or until `MAX_FETCH_DEPTH` is reached.
+ * history, or until `maxDepth` is reached.
  *
  * Both refs are fetched in a single `git fetch` invocation per iteration so
  * that history for both branches is available when `git merge-base` is run.
@@ -224,16 +211,18 @@ export async function hasMergeBase(
  * This keeps the bare branch names usable for the `git merge-base` check even
  * in shallow-clone CI environments.
  *
- * Sequence: depth = INITIAL_FETCH_DEPTH, then doubles each iteration.
+ * Sequence: depth = searchSteps initially, then doubles each iteration.
  * Expects pre-validated refs (see validateGitRef).
  */
 export async function fetchRefUntilMergeBase(
   baseRef: string,
-  headRef: string
+  headRef: string,
+  searchSteps: number = INITIAL_FETCH_DEPTH,
+  maxDepth: number = MAX_FETCH_DEPTH
 ): Promise<void> {
-  let depth = INITIAL_FETCH_DEPTH;
+  let depth = searchSteps;
   let isFirst = true;
-  while (depth <= MAX_FETCH_DEPTH) {
+  while (depth <= maxDepth) {
     const flag = isFirst ? `--depth=${depth}` : `--deepen=${depth / 2}`;
     core.debug(
       `Fetching ${baseRef} and ${headRef} from origin with ${flag}...`
@@ -256,7 +245,7 @@ export async function fetchRefUntilMergeBase(
     depth *= 2;
   }
   core.debug(
-    `Reached max fetch depth (${MAX_FETCH_DEPTH}) without finding merge base for ${baseRef}...${headRef}.`
+    `Reached max fetch depth (${maxDepth}) without finding merge base for ${baseRef}...${headRef}.`
   );
 }
 

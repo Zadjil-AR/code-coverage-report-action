@@ -6,7 +6,6 @@ import {
   computeLostLines,
   computeLostLinesReport,
   getGitDiff,
-  fetchRef,
   logGitDebugInfo,
   hasMergeBase,
   fetchRefUntilMergeBase,
@@ -629,36 +628,6 @@ describe('ensureLocalRef', () => {
 })
 
 // ---------------------------------------------------------------------------
-// fetchRef (unit — spy on _gitExec.run for determinism)
-// ---------------------------------------------------------------------------
-
-describe('fetchRef', () => {
-  afterEach(() => {
-    jest.restoreAllMocks()
-  })
-
-  test('calls git fetch with depth=1 and the given ref', async () => {
-    const spy = jest
-      .spyOn(_gitExec, 'run')
-      .mockResolvedValue({ stdout: '', stderr: '' } as any)
-    await fetchRef('main')
-    expect(spy).toHaveBeenCalledWith('git', [
-      'fetch',
-      '--depth=1',
-      'origin',
-      'main'
-    ])
-  })
-
-  test('propagates errors from git fetch', async () => {
-    jest
-      .spyOn(_gitExec, 'run')
-      .mockRejectedValue(new Error('remote not found') as any)
-    await expect(fetchRef('main')).rejects.toThrow('remote not found')
-  })
-})
-
-// ---------------------------------------------------------------------------
 // hasMergeBase (unit)
 // ---------------------------------------------------------------------------
 
@@ -791,6 +760,66 @@ describe('fetchRefUntilMergeBase', () => {
       const flagArg = argList.find(a => a.startsWith('--depth=') || a.startsWith('--deepen='))!
       const value = Number.parseInt(flagArg.split('=')[1], 10)
       expect(value).toBeLessThanOrEqual(MAX_FETCH_DEPTH)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// fetchRefUntilMergeBase — configurable depths
+// ---------------------------------------------------------------------------
+
+describe('fetchRefUntilMergeBase with custom depths', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  test('uses custom searchSteps and maxDepth', async () => {
+    const spy = jest
+      .spyOn(_gitExec, 'run')
+      // fetch --depth=5
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(main)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // ensureLocalRef(feature/xyz)
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
+      // hasMergeBase → found
+      .mockResolvedValueOnce({ stdout: 'abc1234\n', stderr: '' } as any)
+
+    await fetchRefUntilMergeBase('main', 'feature/xyz', 5, 20)
+
+    expect(spy).toHaveBeenCalledWith('git', [
+      'fetch',
+      '--depth=5',
+      'origin',
+      'main',
+      'feature/xyz'
+    ])
+    expect(spy).toHaveBeenCalledTimes(4)
+  })
+
+  test('stops when custom maxDepth is exceeded', async () => {
+    const spy = jest.spyOn(_gitExec, 'run').mockImplementation(async (_cmd, args) => {
+      const argList = args as string[]
+      if (argList[0] === 'fetch' || argList[0] === 'update-ref') {
+        return { stdout: '', stderr: '' } as any
+      }
+      throw new Error('no common ancestor')
+    })
+
+    await expect(
+      fetchRefUntilMergeBase('main', 'feature/xyz', 5, 10)
+    ).resolves.toBeUndefined()
+
+    const fetchCalls = spy.mock.calls.filter(
+      ([_cmd, args]) => Array.isArray(args) && (args as string[])[0] === 'fetch'
+    )
+    for (const [_cmd, args] of fetchCalls) {
+      const argList = args as string[]
+      const flagArg = argList.find(
+        (a) => a.startsWith('--depth=') || a.startsWith('--deepen=')
+      )!
+      const value = Number.parseInt(flagArg.split('=')[1], 10)
+      expect(value).toBeLessThanOrEqual(10)
     }
   })
 })
