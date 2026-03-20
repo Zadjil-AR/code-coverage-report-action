@@ -14,7 +14,6 @@ import {
   MAX_FETCH_DEPTH,
   _gitExec,
   FileDiff,
-  LostLinePair,
   ComputeLostLinesResult
 } from '../src/lost-lines'
 import { expect, test, describe, jest, afterEach, beforeEach } from '@jest/globals'
