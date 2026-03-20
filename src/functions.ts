@@ -87,6 +87,14 @@ export async function run(): Promise<void> {
 
         core.info(`Complete`);
 
+        // Upload the head coverage file when track_lost_lines is enabled so that
+        // this PR can serve as the base for a subsequent PR in a chain.
+        if (trackLostLines && GITHUB_HEAD_REF) {
+          core.info(`Uploading ${filename} for ${GITHUB_HEAD_REF}...`);
+          await uploadArtifacts([filename], GITHUB_HEAD_REF);
+          core.info(`Complete`);
+        }
+
         //Base doesn't have an artifact
         if (baseCoverage === null) {
           core.warning(
@@ -124,7 +132,12 @@ export async function run(): Promise<void> {
       case 'workflow_dispatch':
         {
           const { GITHUB_REF_NAME = '', GITHUB_WORKFLOW = '' } = process.env;
-          const filesToUpload = [filename];
+          core.info(`Uploading ${filename}...`);
+          await uploadArtifacts([filename], GITHUB_REF_NAME);
+          core.debug(
+            `GITHUB_REF_NAME: ${GITHUB_REF_NAME}, filename: ${filename}`
+          );
+          core.info(`Complete`);
 
           core.info(`Parsing coverage file: ${filename}...`);
           let headCoverage = await parseCoverage(filename, trackLostLines);
@@ -139,13 +152,6 @@ export async function run(): Promise<void> {
           if (headCoverage != null) {
             headCoverage = filterCoverageZeroLineFiles(headCoverage);
           }
-
-          core.info(`Uploading ${filesToUpload.join(', ')}...`);
-          await uploadArtifacts(filesToUpload, GITHUB_REF_NAME);
-          core.debug(
-            `GITHUB_REF_NAME: ${GITHUB_REF_NAME}, filename: ${filename}`
-          );
-          core.info(`Complete`);
 
           core.info(`Workflow Name: ${GITHUB_WORKFLOW}`);
 

@@ -427,3 +427,26 @@ test('run: pull_request with track_lost_lines=true and exclude paths filters bas
   delete process.env.INPUT_EXCLUDE_PATHS
   delete process.env.GITHUB_HEAD_REF
 })
+
+test('run: pull_request with track_lost_lines=true uploads head artifact for chaining', async () => {
+  process.env.GITHUB_EVENT_NAME = 'pull_request'
+  process.env.GITHUB_BASE_REF = 'main'
+  process.env.GITHUB_HEAD_REF = 'feature/my-branch'
+  process.env.INPUT_TRACK_LOST_LINES = 'true'
+
+  mockDownloadArtifacts.mockResolvedValue('/tmp/test-artifacts')
+  mockParseCoverage
+    .mockResolvedValueOnce(mockCoverage as any)
+    .mockResolvedValueOnce(mockCoverage as any)
+  mockBuildCoveredLinesMap.mockReturnValue({ 'src/foo.ts': [1, 2, 3] })
+  mockGetGitDiff.mockResolvedValue('')
+
+  await run()
+
+  expect(mockUploadArtifacts).toHaveBeenCalledWith(
+    ['coverage.xml'],
+    'feature/my-branch'
+  )
+  delete process.env.INPUT_TRACK_LOST_LINES
+  delete process.env.GITHUB_HEAD_REF
+})
