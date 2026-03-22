@@ -83,11 +83,7 @@ inputs:
   track_lost_lines:
     description: >-
       When true, track lines that were previously covered but are no longer covered.
-      Requires the base branch artifact to also have been created with track_lost_lines=true.
-      NOTE: artifact upload requires the workflow to have `actions: write` permission.
-      Add the following to your workflow job:
-        permissions:
-          actions: write
+      Note: when enabled, additional git calls are made to establish the diff to the base branch.
     required: false
     default: 'false'
   lost_lines_merge_base_search_steps:

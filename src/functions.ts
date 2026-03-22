@@ -197,8 +197,7 @@ async function computePrLostLinesReport(
   if (Object.keys(rawBaseCoveredLinesMap).length === 0) {
     core.warning(
       `No covered_lines data found in base coverage. ` +
-        `Lost lines analysis skipped. ` +
-        `Ensure track_lost_lines=true was set when the base branch artifact was created.`
+        `Lost lines analysis skipped.`
     );
     return undefined;
   }
@@ -282,6 +281,14 @@ function buildLostLinesByFile(
       lostPercentage: entry.lostPercentage,
       baseCoveredCount: entry.baseCoveredCount
     });
+  }
+  // Include files with no losses so directory-level denominators are correct.
+  for (const [file, baseCoveredCount] of Object.entries(
+    lostLinesReport.baseCoveredCountByFile
+  )) {
+    if (!map.has(file)) {
+      map.set(file, { lostCount: 0, lostPercentage: 0, baseCoveredCount });
+    }
   }
   return map;
 }

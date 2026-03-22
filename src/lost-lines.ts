@@ -111,16 +111,22 @@ export async function getGitDiff(
   }
   await fetchRefUntilMergeBase(baseRef, headRef, searchSteps, maxDepth);
   core.debug(`Fetched ${baseRef} and ${headRef} from origin successfully.`);
-  await logGitDebugInfo(baseRef, headRef);
-  const { stdout } = await _gitExec.run('git', [
-    'diff',
-    '--diff-filter=AMRCD',
-    '-M',
-    '-U0',
-    `${baseRef}...${headRef}`,
-    '--'
-  ]);
-  return stdout;
+  try {
+    const { stdout } = await _gitExec.run('git', [
+      'diff',
+      '--diff-filter=AMRCD',
+      '-M',
+      '-U0',
+      `${baseRef}...${headRef}`,
+      '--'
+    ]);
+    return stdout;
+  } catch (error) {
+    if (core.isDebug()) {
+      await logGitDebugInfo(baseRef, headRef);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -450,6 +456,7 @@ export function computeLostLinesReport(
   gitDiffMap: Map<string, FileDiff>
 ): LostLinesReport {
   const files: FileLostLines[] = [];
+  const baseCoveredCountByFile: Record<string, number> = {};
   let overallBaseCoveredCount = 0;
   let overallLostCount = 0;
 
@@ -486,6 +493,7 @@ export function computeLostLinesReport(
 
     overallBaseCoveredCount += survivingCount;
     overallLostCount += lostPairs.length;
+    baseCoveredCountByFile[newPath] = survivingCount;
 
     if (lostPairs.length > 0) {
       const lostRanges = linesToRanges(lostPairs.map((p) => p.baseLine));
@@ -513,6 +521,7 @@ export function computeLostLinesReport(
 
   return {
     files,
+    baseCoveredCountByFile,
     overallBaseCoveredCount,
     overallLostCount,
     overallLostPercentage,

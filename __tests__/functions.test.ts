@@ -510,7 +510,8 @@ test('add overall row with base coverage and lost lines shows lost_coverage', as
     overallBaseCoveredCount: 100,
     overallLostCount: 10,
     overallLostPercentage: 10,
-    previewRanges: []
+    previewRanges: [],
+    baseCoveredCountByFile: {}
   }
   const out = addOverallRow(coverage, coverage, lostReport)
   expect(out.lost_coverage).toBe('🔴 -10% (10 lines)')
@@ -523,7 +524,8 @@ test('add overall row with lost lines report having zero lost shows no lost_cove
     overallBaseCoveredCount: 100,
     overallLostCount: 0,
     overallLostPercentage: 0,
-    previewRanges: []
+    previewRanges: [],
+    baseCoveredCountByFile: {}
   }
   const out = addOverallRow(coverage, coverage, lostReport)
   expect(out.lost_coverage).toBeUndefined()
@@ -552,7 +554,8 @@ test('Generate markdown with lost lines report shows Lost Lines column', async (
     previewRanges: [
       { file: 'src/utils.ts', start: 5, end: 7 },
       { file: 'src/utils.ts', start: 10, end: 10 }
-    ]
+    ],
+    baseCoveredCountByFile: { 'src/utils.ts': 50 }
   }
   await generateMarkdown(coverage, coverage, lostReport)
   const summary = await getGithubStepSummary()
@@ -615,7 +618,8 @@ test('Generate markdown with showCoverageByTopDir and lost lines shows Lost Line
     overallBaseCoveredCount: 200,
     overallLostCount: 3,
     overallLostPercentage: 1.5,
-    previewRanges: [{ file: 'src/utils.ts', start: 5, end: 7 }]
+    previewRanges: [{ file: 'src/utils.ts', start: 5, end: 7 }],
+    baseCoveredCountByFile: { 'src/utils.ts': 50 }
   }
   await generateMarkdown(coverage, coverage, lostReport)
   const summary = await getGithubStepSummary()
@@ -651,7 +655,8 @@ test('Generate markdown with coverage_depth and lost lines shows aggregated Lost
     overallBaseCoveredCount: 20,
     overallLostCount: 2,
     overallLostPercentage: 10,
-    previewRanges: [{ file: 'reports/clover/index.ts', start: 1, end: 2 }]
+    previewRanges: [{ file: 'reports/clover/index.ts', start: 1, end: 2 }],
+    baseCoveredCountByFile: { 'reports/clover/index.ts': 20 }
   }
   await generateMarkdown(coverage, coverage, lostReport)
   const summary = await getGithubStepSummary()
@@ -677,7 +682,8 @@ test('Generate markdown with showCoverageByParentDir and lost lines shows aggreg
     overallBaseCoveredCount: 30,
     overallLostCount: 2,
     overallLostPercentage: 6.67,
-    previewRanges: [{ file: 'reports/clover/index.ts', start: 5, end: 6 }]
+    previewRanges: [{ file: 'reports/clover/index.ts', start: 5, end: 6 }],
+    baseCoveredCountByFile: { 'reports/clover/index.ts': 30 }
   }
   await generateMarkdown(coverage, coverage, lostReport)
   const summary = await getGithubStepSummary()
@@ -702,7 +708,8 @@ test('aggregateCoverageByTopDir with lost lines report shows lost_coverage per d
     overallBaseCoveredCount: 15,
     overallLostCount: 3,
     overallLostPercentage: 20,
-    previewRanges: [{ file: 'reports/clover/index.ts', start: 1, end: 3 }]
+    previewRanges: [{ file: 'reports/clover/index.ts', start: 1, end: 3 }],
+    baseCoveredCountByFile: { 'reports/clover/index.ts': 15 }
   }
   const result = aggregateCoverageByTopDir(coverage, coverage, 75, 50, lostReport)
   const reportsDir = result.find((r) => r.package === 'reports/')
@@ -716,4 +723,39 @@ test('aggregateCoverageByTopDir without lost lines report has no lost_coverage',
   for (const row of result) {
     expect(row.lost_coverage).toBeUndefined()
   }
+})
+
+test('aggregateCoverageByTopDir lost_coverage percentage includes files without losses in denominator', async () => {
+  // Use two files in the same top-level dir; only one has losses.
+  // The denominator should include both files' base covered lines.
+  const coverage = await loadJSONFixture('clover-parsed.json')
+  // File with losses: 10 base covered, 5 lost → 50% if counted alone
+  // File without losses (sibling): 10 base covered, 0 lost
+  // Correct %: 5 / (10 + 10) = 25%
+  const lostReport: LostLinesReport = {
+    files: [
+      {
+        file: 'reports/clover/index.ts',
+        lostRanges: [{ start: 1, end: 5 }],
+        newLostRanges: [{ start: 1, end: 5 }],
+        baseCoveredCount: 10,
+        lostCount: 5,
+        lostPercentage: 50
+      }
+    ],
+    overallBaseCoveredCount: 20,
+    overallLostCount: 5,
+    overallLostPercentage: 25,
+    previewRanges: [],
+    // Sibling file 'reports/clover/parser/index.ts' has 10 covered, no losses
+    baseCoveredCountByFile: {
+      'reports/clover/index.ts': 10,
+      'reports/clover/parser/index.ts': 10
+    }
+  }
+  const result = aggregateCoverageByTopDir(coverage, coverage, 75, 50, lostReport)
+  const reportsDir = result.find((r) => r.package === 'reports/')
+  expect(reportsDir).toBeDefined()
+  // lostCount=5, denominator=20 (10+10) → 25% not 50%
+  expect(reportsDir?.lost_coverage).toContain('-25%')
 })

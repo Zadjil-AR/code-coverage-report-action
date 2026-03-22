@@ -475,6 +475,41 @@ describe('computeLostLinesReport', () => {
     expect(report.previewRanges[0]).toEqual({ file: 'src/a.ts', start: 2, end: 2 })
   })
 
+  test('baseCoveredCountByFile includes files with and without losses', () => {
+    const base: Record<string, number[]> = {
+      'src/a.ts': [1, 2],      // has losses
+      'src/b.ts': [10, 11, 12] // no losses
+    }
+    const head: Record<string, number[]> = {
+      'src/a.ts': [1],
+      'src/b.ts': [10, 11, 12]
+    }
+    const diff: Map<string, FileDiff> = new Map()
+
+    const report = computeLostLinesReport(base, head, diff)
+    // Both files should be in baseCoveredCountByFile
+    expect(report.baseCoveredCountByFile['src/a.ts']).toBe(2)
+    expect(report.baseCoveredCountByFile['src/b.ts']).toBe(3)
+    // Only the file with losses should be in files[]
+    expect(report.files).toHaveLength(1)
+    expect(report.files[0].file).toBe('src/a.ts')
+  })
+
+  test('baseCoveredCountByFile excludes deleted files', () => {
+    const base: Record<string, number[]> = {
+      'src/gone.ts': [1, 2, 3],
+      'src/kept.ts': [1, 2]
+    }
+    const head: Record<string, number[]> = { 'src/kept.ts': [1, 2] }
+    const diff: Map<string, FileDiff> = new Map([
+      ['src/gone.ts', { newPath: 'src/gone.ts', hunks: [], deleted: true }]
+    ])
+
+    const report = computeLostLinesReport(base, head, diff)
+    expect(report.baseCoveredCountByFile['src/gone.ts']).toBeUndefined()
+    expect(report.baseCoveredCountByFile['src/kept.ts']).toBe(2)
+  })
+
   test('returns 0% overall when base has no covered lines', () => {
     const report = computeLostLinesReport({}, {}, new Map())
     expect(report.overallLostPercentage).toBe(0)
@@ -543,10 +578,23 @@ describe('computeLostLinesReport with empty entries', () => {
   })
 })
 
-test('getGitDiff with valid ref returns a string (integration)', async () => {
-  // HEAD...HEAD diff is always empty but executes the git command
-  const result = await getGitDiff('HEAD', 'HEAD')
-  expect(typeof result).toBe('string')
+test('getGitDiff calls git diff with base and head refs', async () => {
+  const runSpy = jest
+    .spyOn(_gitExec, 'run')
+    .mockResolvedValue({ stdout: 'mock diff output', stderr: '', exitCode: 0 } as any)
+
+  try {
+    const result = await getGitDiff('main', 'feature/branch')
+    expect(result).toBe('mock diff output')
+    const diffCall = runSpy.mock.calls.find(
+      (call) =>
+        Array.isArray(call[1]) &&
+        call[1].includes('main...feature/branch')
+    )
+    expect(diffCall).toBeDefined()
+  } finally {
+    runSpy.mockRestore()
+  }
 })
 
 // ---------------------------------------------------------------------------
@@ -838,19 +886,13 @@ describe('getGitDiff with missing base ref', () => {
     //   2. fetchRefUntilMergeBase: ensureLocalRef(main) update-ref → success
     //   3. fetchRefUntilMergeBase: ensureLocalRef(feature/xyz) update-ref → success
     //   4. fetchRefUntilMergeBase: hasMergeBase → found
-    //   5. logGitDebugInfo: git log → success
-    //   6. logGitDebugInfo: git branch -a → success
-    //   7. logGitDebugInfo: git merge-base → success
-    //   8. git diff → success
+    //   5. git diff → success
     const spy = jest
       .spyOn(_gitExec, 'run')
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // git fetch
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // ensureLocalRef main
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // ensureLocalRef feature/xyz
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // hasMergeBase (found)
-      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any) // git log
-      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)     // git branch -a
-      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // git merge-base (logGitDebugInfo)
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // git diff
 
     const result = await getGitDiff('main', 'feature/xyz')
@@ -873,7 +915,7 @@ describe('getGitDiff with missing base ref', () => {
       'main...feature/xyz',
       '--'
     ])
-    expect(spy).toHaveBeenCalledTimes(8)
+    expect(spy).toHaveBeenCalledTimes(5)
   })
 
   test('deepens fetch when merge base is not found on the first attempt', async () => {
@@ -886,10 +928,7 @@ describe('getGitDiff with missing base ref', () => {
     //   6.  ensureLocalRef main → success
     //   7.  ensureLocalRef feature/xyz → success
     //   8.  hasMergeBase → found
-    //   9.  logGitDebugInfo: git log → success
-    //   10. logGitDebugInfo: git branch -a → success
-    //   11. logGitDebugInfo: git merge-base → success
-    //   12. git diff → success
+    //   9.  git diff → success
     const spy = jest
       .spyOn(_gitExec, 'run')
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // fetch depth=10
@@ -900,15 +939,12 @@ describe('getGitDiff with missing base ref', () => {
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // ensureLocalRef main
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // ensureLocalRef feature/xyz
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // hasMergeBase (found)
-      .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any) // git log
-      .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)     // git branch -a
-      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)        // git merge-base
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)             // git diff
 
     const result = await getGitDiff('main', 'feature/xyz')
 
     expect(result).toBe('')
-    expect(spy).toHaveBeenCalledTimes(12)
+    expect(spy).toHaveBeenCalledTimes(9)
   })
 
   test('throws when baseRef is invalid', async () => {
@@ -996,7 +1032,8 @@ describe('logGitDebugInfo', () => {
     )
   })
 
-  test('is called by getGitDiff after fetchRefUntilMergeBase', async () => {
+  test('is called by getGitDiff when git diff fails and core.isDebug is true', async () => {
+    jest.spyOn(core, 'isDebug').mockReturnValue(true)
     const runSpy = jest
       .spyOn(_gitExec, 'run')
       // fetchRefUntilMergeBase: git fetch --depth=10
@@ -1007,16 +1044,16 @@ describe('logGitDebugInfo', () => {
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
       // fetchRefUntilMergeBase: hasMergeBase → found
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
+      // git diff → fails
+      .mockRejectedValueOnce(new Error('diff failed') as never)
       // logGitDebugInfo: git log
       .mockResolvedValueOnce({ stdout: 'abc commit\n', stderr: '' } as any)
       // logGitDebugInfo: git branch -a
       .mockResolvedValueOnce({ stdout: '* main\n', stderr: '' } as any)
       // logGitDebugInfo: git merge-base
       .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)
-      // git diff
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)
 
-    await getGitDiff('main', 'feature/xyz')
+    await expect(getGitDiff('main', 'feature/xyz')).rejects.toThrow('diff failed')
 
     // Confirm git log was called as part of logGitDebugInfo
     expect(runSpy).toHaveBeenCalledWith('git', [
@@ -1034,5 +1071,36 @@ describe('logGitDebugInfo', () => {
       'feature/xyz'
     ])
     expect(runSpy).toHaveBeenCalledTimes(8)
+  })
+
+  test('does not call logGitDebugInfo when git diff fails but core.isDebug is false', async () => {
+    jest.spyOn(core, 'isDebug').mockReturnValue(false)
+    const runSpy = jest
+      .spyOn(_gitExec, 'run')
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)   // git fetch
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)   // ensureLocalRef main
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)   // ensureLocalRef feature/xyz
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)  // hasMergeBase
+      .mockRejectedValueOnce(new Error('diff failed') as never)   // git diff fails
+
+    await expect(getGitDiff('main', 'feature/xyz')).rejects.toThrow('diff failed')
+    // logGitDebugInfo should NOT have been called (no git log/branch calls)
+    expect(runSpy).toHaveBeenCalledTimes(5)
+    expect(runSpy).not.toHaveBeenCalledWith('git', ['log', '--oneline', '-n', '20'])
+  })
+
+  test('does not call logGitDebugInfo when git diff succeeds', async () => {
+    const runSpy = jest
+      .spyOn(_gitExec, 'run')
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)   // git fetch
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)   // ensureLocalRef main
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)   // ensureLocalRef feature/xyz
+      .mockResolvedValueOnce({ stdout: 'abc\n', stderr: '' } as any)  // hasMergeBase
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as any)   // git diff succeeds
+
+    await getGitDiff('main', 'feature/xyz')
+    // Only 5 calls: fetch, 2x ensureLocalRef, hasMergeBase, diff
+    expect(runSpy).toHaveBeenCalledTimes(5)
+    expect(runSpy).not.toHaveBeenCalledWith('git', ['log', '--oneline', '-n', '20'])
   })
 })

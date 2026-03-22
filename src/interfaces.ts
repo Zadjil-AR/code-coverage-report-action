@@ -44,6 +44,11 @@ export interface LostLinesReport {
   overallLostPercentage: number;
   /** First 5 lost-line ranges across all files (head line numbers), for template rendering. */
   previewRanges: LostRangePreview[];
+  /**
+   * Surviving base covered line count for every file (keyed by head path).
+   * Includes files with 0 lost lines so directory aggregations use the full denominator.
+   */
+  baseCoveredCountByFile: Record<string, number>;
 }
 
 export interface Inputs {

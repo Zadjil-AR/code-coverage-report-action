@@ -122,7 +122,9 @@ beforeEach(async () => {
     files: [],
     overallBaseCoveredCount: 0,
     overallLostCount: 0,
-    overallLostPercentage: 0
+    overallLostPercentage: 0,
+    previewRanges: [],
+    baseCoveredCountByFile: {}
   })
 })
 
