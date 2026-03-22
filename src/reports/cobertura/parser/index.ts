@@ -121,14 +121,16 @@ function countLines(
       (line as { '@_hits'?: string })['@_hits'] ?? '0',
       10
     );
-    const num = Number.parseInt(
-      (line as { '@_number'?: string })['@_number'] ?? '0',
-      10
-    );
     if (hits > 0) {
       lines_covered += 1;
-      if (covered_lines !== undefined && num > 0) {
-        covered_lines.push(num);
+      if (covered_lines !== undefined) {
+        const num = Number.parseInt(
+          (line as { '@_number'?: string })['@_number'] ?? '0',
+          10
+        );
+        if (num > 0) {
+          covered_lines.push(num);
+        }
       }
     }
   }

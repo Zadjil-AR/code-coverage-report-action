@@ -1,309 +1,156 @@
-# Plan: Report of Line Coverage Lost
+# feat: Track and report lines that lost test coverage across PRs
 
-## PR Summary
+## What This Change Does
 
-This PR adds an optional "lost covered lines" regression report to the action, surfacing
-previously-covered source lines that are no longer covered after a PR's changes.
-
-### Core feature
-- **`action.yml`** — new `track_lost_lines` boolean input (default `false`); behaviour is
-  unchanged when the flag is not set.
-- **`src/lost-lines.ts`** — full implementation of `git diff` parsing, line-number mapping,
-  and lost-lines computation; Node.js built-in imports use `node:` protocol
-  (`node:child_process`, `node:util`); `validateGitRef` rejects leading `-` characters to
-  prevent option injection; `computeLostLines` returns `LostLinePair[]` (both base and head
-  line numbers); the lost-lines denominator excludes permanently deleted lines so only
-  surviving lines count; `extractFileInfo` extracts rename/deletion detection from
-  `parseGitDiff`; `buildPreviewRanges` extracts preview-range building from
-  `computeLostLinesReport`; `Number.parseInt` used in place of global `parseInt`.
-- **`src/utils.ts`** — `parseCoverage` accepts optional `trackLostLines` flag;
-  `writeCoveredLinesFile` / `readCoveredLinesFile` helpers manage the `coverage-lines.json`
-  artifact; `readCoveredLinesFile` wraps `JSON.parse` in try/catch and validates
-  `version`/`files` schema before iterating; `filterCoveredLinesMap` applies `exclude_paths`
-  before comparison.
-- **`src/functions.ts`** — `getInputs()` called once before the event switch so
-  `trackLostLines` and `excludePaths` are available to all paths without duplication;
-  `trackLostLines` passed to all `parseCoverage` calls (head and base in PR path; head in
-  push/schedule path); `formatLostCoverage` renders `🔴 <n> lines (<pct>%)`;
-  `buildLostLinesByFile` and updated `buildCoverageRows` / `addOverallRow` inject lost-lines
-  data into the template context.
-
-### Interfaces
-- **`src/interfaces.ts`** — `FileLostLines` gains `newLostRanges` (head line numbers for
-  display alongside `lostRanges` for artifact audit); new `LostRangePreview` interface;
-  `LostLinesReport` gains `previewRanges` (first 5 ranges, head line numbers, precomputed
-  for template rendering).
-
-### Parsers
-- **`src/reports/clover/parser/index.ts`** — `trackLostLines` flag threaded through all
-  internal helpers; `covered_lines` only collected when enabled; single `<line>` element
-  normalised to array; `extractCloverCoveredLines` exported for direct unit testing;
-  `Number.parseInt` used in place of global `parseInt`.
-- **`src/reports/cobertura/parser/index.ts`** — same flag threading; `covered_lines`
-  `undefined` when flag is off; non-null assertion replaced with `covered_lines !== undefined`
-  guard; `Number.parseInt` used in place of global `parseInt`.
-
-### Template
-- **`templates/with-base-coverage.hbs`** — "Lost Lines" column added to per-file and top-dir
-  tables; collapsible details block guarded by `{{#if lost_lines_report.overallLostCount}}`
-  so it only renders when there are actual losses; details block iterates
-  `lost_lines_report.previewRanges` (at most 5 entries) instead of nested loops over all
-  files and all ranges.
-
-### Artifact chaining
-- On `pull_request` / `pull_request_target` events with `track_lost_lines=true`,
-  `coverage-lines.json` is uploaded under the PR head-branch name so subsequent PRs targeting
-  this branch can use it as their base (chained PR support).
-
-### Exclude-paths and rename support
-- `filterCoveredLinesMap()` applies the `exclude_paths` input to the base covered-lines map
-  before the comparison, keeping exclusions consistent across all coverage calculations.
-- Lost-lines report entries use `newPath` (the post-rename path) so they match the
-  head-coverage file list for renamed/moved files.
-
-### Tests and snapshots
-- **`__tests__/number-array-serializer.js`** + **`jest.config.js`** — custom Jest snapshot
-  serializer formats `number[]` arrays with 20 items per line; snapshot file shrank from
-  2 218 → 523 lines (75% reduction).
-- `toMatchSnapshot()` calls added to `parseCoverage` tests with `trackLostLines=true`,
-  verifying `covered_lines` arrays are captured correctly in snapshots.
-- New fixtures: `clover-package-no-files.xml`, `clover-file-no-lines.xml`,
-  `clover-single-line.xml`, `clover-no-path.xml`, `clover-edge-cases.xml`,
-  `cobertura-two-classes-same-file.xml` — cover all new parser paths and edge cases.
-- `extractCloverCoveredLines` exported for direct unit testing; direct tests added for empty
-  input, missing `num` attribute, and missing `count` attribute.
-- `validateGitRef` tests cover leading `-`, `--option`, and single `-` rejection.
-- `computeLostLines` tests updated for new `LostLinePair` return type; `computeLostLinesReport`
-  tests cover new denominator behaviour (deleted lines excluded), `newLostRanges`,
-  `previewRanges` capped at 5, and the exact 52-lines/50-deleted/50%-loss scenario.
-- `readCoveredLinesFile` tests cover invalid JSON, unexpected version, and missing `files`.
-- Imports in `__tests__/lost-lines.test.ts` consolidated at the top of the file; Node.js
-  module imports in `__tests__/utils.test.ts` use `node:` protocol.
-- Clover parser coverage: branch 86% → 93.22% (+7%), statements/lines 98% → 100%.
-- Cobertura parser coverage: statements/lines/functions 81% → 100%.
+This change adds an optional feature to the code coverage report action that detects and
+reports source lines that were previously covered by tests on the base branch but are no
+longer covered after a pull request's changes. This helps developers catch unintentional
+regressions in test coverage at a granular, line-by-line level, complementing the existing
+percentage-based coverage reporting.
 
 ---
 
-## Goal
+## How to Use It
 
-When a PR's code coverage is compared against the base branch, identify and report any
-source lines that were previously covered by tests but are no longer covered. This helps
-developers detect unintentional regressions in test coverage at the line level.
+Add `track_lost_lines: true` to your workflow step:
 
----
-
-## Feature Flag
-
-A new action input `track_lost_lines` (boolean, default `false`) gates the entire feature.
-When `false` the action behaves exactly as before — no extra computation, no extra artifact
-content. Both the base-branch upload and the PR comparison code paths check this flag.
-
----
-
-## Data Model
-
-### New interface additions (`src/interfaces.ts`)
-
-| Interface | Purpose |
-|-----------|---------|
-| `LineRange { start, end }` | A contiguous range of line numbers (both ends inclusive). |
-| `FileLostLines` | Per-file summary: `file`, `lostRanges`, `baseCoveredCount`, `lostCount`, `lostPercentage`. |
-| `LostLinesReport` | Aggregate: `files[]`, `overallBaseCoveredCount`, `overallLostCount`, `overallLostPercentage`. |
-
-`CoverageFile` gains an optional `covered_lines?: number[]` field populated by the parsers
-when `track_lost_lines` is enabled.
-
-`Inputs` gains `trackLostLines: boolean`.
-
-`HandlebarContext` gains an optional `lostLinesReport?: LostLinesReport` passed to
-templates.
-
----
-
-## Coverage XML Parsers
-
-Both parsers are updated to extract the actual covered line numbers when the input flag is set.
-
-| Parser | Source attribute | Condition |
-|--------|-----------------|-----------|
-| Cobertura (`src/reports/cobertura/parser/index.ts`) | `<line number="N" hits="H"/>` | `H > 0` |
-| Clover (`src/reports/clover/parser/index.ts`) | `<line num="N" count="C"/>` | `C > 0` |
-
-Line numbers are stored as a sorted `number[]` in `CoverageFile.covered_lines`.
-
----
-
-## Covered Lines Artifact File
-
-A new JSON file `coverage-lines.json` is written and uploaded alongside the existing
-coverage XML when `track_lost_lines=true`.
-
-- **push / schedule / workflow_dispatch**: Uploaded as part of the branch artifact named
-  after `GITHUB_REF_NAME`.
-- **pull_request / pull_request_target**: Also uploaded using `GITHUB_HEAD_REF` as the
-  artifact name. This enables the PR branch to serve as the base for a subsequent PR in a
-  chain (i.e. chained PRs can each compare lost lines against their immediate parent).
-
-### Format (compact — uses ranges)
-
-```json
-{
-  "version": 1,
-  "files": {
-    "src/main.ts":  [[1,3],[5,7],[10,10]],
-    "src/utils.ts": [[1,50],[60,80]]
-  }
-}
+```yaml
+- uses: Zadjil-AR/code-coverage-report-action@main
+  with:
+    filename: coverage.xml
+    token: ${{ secrets.GITHUB_TOKEN }}
+    track_lost_lines: true
 ```
 
-Each value is an array of `[start, end]` tuples (inclusive) representing covered line
-ranges. Using ranges instead of a flat list of line numbers keeps the file small for large
-codebases.
+Two optional inputs let you tune how far back git history is fetched to find the merge base:
 
-On the PR side, the action looks for `coverage-lines.json` inside the downloaded artifact
-directory. If it is absent (artifact was created before this feature was added), the action
-logs a warning and skips the lost lines analysis.
+| Input | Default | Description |
+|-------|---------|-------------|
+| `lost_lines_merge_base_search_steps` | `10` | Initial fetch depth when searching for the merge base |
+| `lost_lines_merge_base_max_depth` | `512` | Maximum fetch depth before giving up |
 
----
-
-## Git Diff and Line Mapping
-
-### Command
-
-```
-git diff --diff-filter=AMRCD -M -U0 <baseRef>...HEAD
-```
-
-| Flag | Purpose |
-|------|---------|
-| `--diff-filter=AMRCD` | Only show Added, Modified, Renamed, Copied, Deleted files |
-| `-M` | Detect renames / moves |
-| `-U0` | No context lines — minimises output |
-| `<baseRef>...HEAD` | Three-dot diff gives changes on the PR branch since diverging from base |
-
-`execFile` is used instead of `exec` / `execSync` to avoid shell injection. The base ref
-is also validated against `/^[a-zA-Z0-9_.\/\-]+$/` before being passed to the command.
-
-### Line Mapping Algorithm
-
-For each file in the diff the hunk headers `@@ -oldStart,oldCount +newStart,newCount @@`
-are parsed into a sorted list of `Hunk` objects.
-
-A `lineResolver(oldLine: number): number | null` function is built per file:
-
-1. Walk hunks in order, tracking `cumulativeOffset`.
-2. If `oldLine < hunk.oldStart` → return `oldLine + cumulativeOffset` (line unchanged
-   relative to this hunk).
-3. If `oldLine` falls within `[hunk.oldStart, hunk.oldStart + hunk.oldCount - 1]` →
-   return `null` (line was deleted).
-4. After each hunk: `cumulativeOffset += newCount - oldCount`.
-5. If `oldLine` is after all hunks → return `oldLine + cumulativeOffset`.
-
-Files **not** present in the diff are treated as unchanged; the resolver is the identity
-function (`oldLine → oldLine`).
-
-Renamed files: the diff contains `rename from / rename to` headers; the old path is used
-as the lookup key and the new path determines which head covered-lines entry to compare
-against.
-
-Deleted files (filter `D`): the resolver returns `null` for every line, so no line is
-counted as lost.
+When the feature is disabled (the default), the action behaves exactly as before — no extra
+computation, no extra git calls, no extra output.
 
 ---
 
-## Computing Lost Lines
+## What Users See
+
+When `track_lost_lines=true` and a base coverage artifact is available for comparison, a
+**Lost Lines** column appears in the existing coverage table:
 
 ```
-for each file in baseCoveredLinesMap (after applying excludePaths filter):
-    lostLines = []
-    resolver = buildLineResolver(gitDiff[file].hunks ?? [])
-    headSet  = Set(headCoveredLinesMap[newPath] ?? [])
-    for each baseLine in baseCoveredLines[file]:
-        newLine = resolver(baseLine)
-        if newLine is null:       skip   (line was deleted)
-        if newLine not in headSet: record baseLine as lost
-    if lostLines non-empty:
-        compute lostPercentage = (lost.length / baseCoveredLines.length) * 100
-        convert lostLines to ranges
-        append FileLostLines entry
+| Package       | Base Coverage | New Coverage | Difference | Lost Lines      |
+| ------------- | ------------- | ------------ | ---------- | --------------- |
+| src/utils.ts  | 🟢 95%        | 🟢 90%       | 🔴 -5%     | 🔴 -8% (4 lines)|
+| Overall Coverage | 🟢 93%     | 🟢 92%       | 🔴 -1%     | 🔴 -2% (4 lines)|
 ```
 
-Note: the `excludePaths` input is applied to the `baseCoveredLinesMap` read from the base
-artifact before the comparison begins, so that files explicitly excluded from coverage
-reporting are also excluded from lost-lines calculations.
-
----
-
-## Reporting
-
-### Existing table — new column
-
-When `trackLostLines=true` and a base is available, a **Lost Lines** column is added to
-the existing comparison table:
-
-```
-| Package | Base Coverage | New Coverage | Difference | Lost Lines |
-```
-
-Each row shows the lost-coverage percentage for that file (e.g. `🔴 5% lost (3 lines)`)
-or is blank if no lines were lost.
-
-The Overall Coverage row also shows the aggregate lost lines percentage.
-
-### First-5 ranges summary
-
-If any lines were lost, a collapsible `<details>` block is appended **below** the table
-(not a new table), listing the **first 5 loss ranges** across all files in a concise
-format:
+If any lines were lost, a collapsible details block is appended below the table showing
+the first 5 lost-line ranges across all files:
 
 ```
 <details>
-<summary>Lost coverage details (5 of N ranges)</summary>
+<summary>Lost coverage details (4 lines lost across 1 file(s))</summary>
 
-- `src/foo.ts` lines 10–15, 20–22
-- `src/bar.ts` lines 5–7
+- `src/utils.ts`: lines 5–7
+- `src/utils.ts`: lines 10–10
 
 </details>
 ```
 
-### Artifact storage of all ranges
-
-A `lost-lines-report.json` file is written locally when there are lost lines on a PR run
-so that it can be inspected, and it is included in the markdown output file for auditability.
+Files with no lost lines display a dash (`-`) in the Lost Lines column. The column only
+appears when `track_lost_lines=true` and a base is available for comparison.
 
 ---
 
-## Code Organisation
+## How It Works
 
-All new functions are in `src/lost-lines.ts` with single responsibilities:
+### 1. Parsing covered lines
 
-| Function | Purpose |
-|----------|---------|
-| `validateGitRef(ref)` | Returns `true` if the ref contains only safe characters (rejects leading `-`). |
-| `getGitDiff(baseRef)` | Runs git diff and returns stdout. |
-| `parseGitDiff(output)` | Splits output into per-file `{ newPath, hunks, deleted }` entries. |
-| `extractFileInfo(lines, ...)` | Extracts old/new paths and deleted flag from diff section lines. |
-| `buildLineResolver(hunks)` | Returns a `(oldLine) => number \| null` function. |
-| `linesToRanges(lines)` | Converts sorted line numbers to `LineRange[]`. |
-| `computeLostLines(base, resolver, headSet)` | Core logic — returns `LostLinePair[]` (base + head line). |
-| `computeLostLinesReport(base, head, diff)` | Assembles the full `LostLinesReport`. |
-| `buildPreviewRanges(files)` | Returns first 5 head-line ranges across all files. |
-| `coveredLinesToRanges(lines)` | Converts `number[]` to `[number, number][]` for storage. |
-| `rangesToLines(ranges)` | Inverse of the above. |
+Both the Cobertura and Clover parsers are extended to capture the actual line numbers of
+covered lines (not just the count) when `track_lost_lines=true`:
+
+- **Cobertura**: reads `<line number="N" hits="H"/>` — captures `N` when `H > 0` and only
+  parses the `number` attribute when the feature is enabled (no overhead when disabled).
+- **Clover**: reads `<line num="N" count="C"/>` — captures `N` when `C > 0`.
+
+Covered line numbers are stored as a sorted `number[]` in `CoverageFile.covered_lines`.
+
+### 2. Git diff and line mapping
+
+When a PR comparison runs with `track_lost_lines=true`, the action calls:
+
+```
+git diff --diff-filter=AMRCD -M -U0 <baseRef>...<headRef>
+```
+
+Because CI runners often have shallow clones, the action incrementally deepens the fetch
+(`--deepen`) until the merge base between base and head is reachable (up to
+`lost_lines_merge_base_max_depth`). Debug information about git state is only logged when
+the diff command fails and `ACTIONS_STEP_DEBUG` is enabled.
+
+The diff output is parsed into per-file hunk maps. For each file a `lineResolver` function
+is built that maps old (base) line numbers to new (head) line numbers, accounting for
+insertions and deletions. Lines that were permanently deleted by the diff return `null` and
+are excluded from both the numerator and denominator of the lost percentage.
+
+### 3. Computing lost lines
+
+For each file in the base coverage map:
+
+1. Apply the `exclude_paths` filter (same exclusions as the rest of the report).
+2. Skip files deleted entirely in the PR (not counted as losses).
+3. For each base covered line, resolve its head line number.
+4. If the resolved head line is not in the head coverage set → the line is lost.
+5. Aggregate per-file and overall lost counts and percentages.
+
+The lost percentage denominator counts only **surviving** base covered lines (i.e. those
+not permanently deleted), so a file where half the lines were deleted does not inflate the
+loss percentage.
+
+The report also tracks all surviving base covered line counts (including files with zero
+losses) so that directory-level percentage aggregations use the correct full denominator.
+
+### 4. Rendering
+
+The `LostLinesReport` is passed to the existing Handlebars templates. The "Lost Lines"
+column is conditionally rendered only when the report is present. A pre-built list of the
+first 5 lost-line ranges (using head file line numbers) is stored in `previewRanges` on
+the report to avoid iterating over all files and all ranges inside the template.
 
 ---
 
-## Testing
+## Key Implications
 
-All new functions have dedicated unit tests in `__tests__/lost-lines.test.ts`.
-
-Coverage for new code targets 100%. Existing tests must continue to pass unchanged.
+- **No impact when disabled**: all new code paths are guarded by `track_lost_lines=false`
+  (the default). Existing users see no change.
+- **Extra git calls on PR runs**: when the feature is enabled, additional `git fetch` and
+  `git diff` calls are made to establish the diff between base and head. These calls are
+  avoided on push/schedule events.
+- **Ref validation**: `validateGitRef` rejects refs beginning with `-` to prevent
+  option injection into git commands.
+- **Denominator accuracy**: the lost percentage at both file and directory level uses only
+  surviving covered lines as the denominator, giving an accurate signal even when lines
+  are deleted by the PR.
 
 ---
 
-## Backward Compatibility
+## Key Files Changed vs Main Branch
 
-- When `track_lost_lines=false` (the default), the action is byte-for-byte identical in
-  behaviour to the previous version.
-- Old artifacts (without `coverage-lines.json`) are handled gracefully: the action warns
-  and proceeds without lost-lines analysis.
+| File | Change |
+|------|--------|
+| `action.yml` | Adds `track_lost_lines`, `lost_lines_merge_base_search_steps`, `lost_lines_merge_base_max_depth` inputs |
+| `src/interfaces.ts` | Adds `FileLostLines`, `LostRangePreview`, `LostLinesReport`, `baseCoveredCountByFile` interfaces; extends `CoverageFile` and `Inputs` |
+| `src/lost-lines.ts` | New module: git diff execution, parsing, line mapping, and lost-lines report computation |
+| `src/utils.ts` | Extends `parseCoverage` to pass `trackLostLines`; adds `buildCoveredLinesMap`, `filterCoveredLinesMap`; robust default handling for numeric inputs |
+| `src/functions.ts` | Wires the feature into action flow, markdown generation, and coverage row formatting; `getInputs()` called once before the event switch |
+| `src/reports/cobertura/parser/index.ts` | Captures covered line numbers; `@_number` only parsed when feature is enabled and hits > 0 |
+| `src/reports/clover/parser/index.ts` | Captures covered line numbers when feature is enabled |
+| `templates/with-base-coverage.hbs` | Adds "Lost Lines" column to per-file and directory tables; collapsible details block |
+| `__tests__/lost-lines.test.ts` | Full unit tests for new module |
+| `__tests__/utils.test.ts` | Tests for new util functions and input parsing |
+| `__tests__/functions.test.ts` | Tests for markdown generation and row formatting with lost lines |
+| `__tests__/run.test.ts` | Integration-path tests for `track_lost_lines` flag |
+| `jest.config.js` | Custom snapshot serializer for compact `number[]` output |
+

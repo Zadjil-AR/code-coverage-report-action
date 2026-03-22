@@ -560,20 +560,24 @@ export function getInputs(): Inputs {
 
   const trackLostLines = core.getInput('track_lost_lines') === 'true';
 
-  const lostLinesMergeBaseSearchSteps = Math.max(
-    1,
-    Number.parseInt(
-      core.getInput('lost_lines_merge_base_search_steps') || '10',
-      10
-    ) || 10
+  const searchStepsRaw = Number.parseInt(
+    core.getInput('lost_lines_merge_base_search_steps'),
+    10
   );
+  const lostLinesMergeBaseSearchSteps =
+    !Number.isFinite(searchStepsRaw) || searchStepsRaw < 1
+      ? 10
+      : searchStepsRaw;
 
+  const maxDepthRaw = Number.parseInt(
+    core.getInput('lost_lines_merge_base_max_depth'),
+    10
+  );
+  const parsedMaxDepth =
+    !Number.isFinite(maxDepthRaw) || maxDepthRaw < 1 ? 512 : maxDepthRaw;
   const lostLinesMergeBaseMaxDepth = Math.max(
     lostLinesMergeBaseSearchSteps,
-    Number.parseInt(
-      core.getInput('lost_lines_merge_base_max_depth') || '512',
-      10
-    ) || 512
+    parsedMaxDepth
   );
 
   return {

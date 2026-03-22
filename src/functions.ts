@@ -395,9 +395,10 @@ function buildCoverageRows(
             fileCoverageErrorMin
           )}`,
           difference: colorizePercentageByThreshold(differencePercentage),
-          lost_coverage: lostEntry
-            ? formatLostCoverage(lostEntry.lostCount, lostEntry.lostPercentage)
-            : undefined
+          lost_coverage:
+            lostEntry && lostEntry.lostCount > 0
+              ? formatLostCoverage(lostEntry.lostCount, lostEntry.lostPercentage)
+              : undefined
         };
       })
       .sort((a, b) =>

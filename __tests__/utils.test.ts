@@ -556,3 +556,93 @@ test('getInputs clamps lostLinesMergeBaseMaxDepth to at least lostLinesMergeBase
   delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
   delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
 })
+
+test('getInputs uses default lostLinesMergeBaseSearchSteps (10) when not supplied', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(10)
+})
+
+test('getInputs uses default lostLinesMergeBaseSearchSteps (10) when supplied value is not a number', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = 'notanumber'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(10)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+})
+
+test('getInputs uses default lostLinesMergeBaseSearchSteps (10) when supplied value is less than 1', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = '0'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(10)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+})
+
+test('getInputs uses default lostLinesMergeBaseSearchSteps (10) when supplied value is negative', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = '-5'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(10)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+})
+
+test('getInputs uses default lostLinesMergeBaseMaxDepth (512) when not supplied', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(512)
+})
+
+test('getInputs uses default lostLinesMergeBaseMaxDepth (512) when supplied value is not a number', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = 'notanumber'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(512)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
+})
+
+test('getInputs uses default lostLinesMergeBaseMaxDepth (512) when supplied value is less than 1', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = '0'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(512)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
+})
+
+test('getInputs uses default lostLinesMergeBaseMaxDepth (512) when supplied value is negative', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = '-100'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(512)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
+})
