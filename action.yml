@@ -80,6 +80,25 @@ inputs:
     description: 'Comma-separated path prefixes to exclude from coverage (e.g. tests/, e2e/, docs/). Files whose relative path starts with any prefix are excluded from the report and from overall coverage.'
     required: false
     default: ''
+  track_lost_lines:
+    description: >-
+      When true, track lines that were previously covered but are no longer covered.
+      Note: when enabled, additional git calls are made to establish the diff to the base branch.
+    required: false
+    default: 'false'
+  lost_lines_merge_base_search_steps:
+    description: >-
+      Initial fetch depth used when searching for the merge base between the base and head refs.
+      The fetch is repeated with a doubling depth until the merge base is found or
+      lost_lines_merge_base_max_depth is reached. Defaults to 10.
+    required: false
+    default: '10'
+  lost_lines_merge_base_max_depth:
+    description: >-
+      Maximum fetch depth when searching for the merge base between the base and head refs.
+      If the merge base is not found within this depth the search stops. Defaults to 512.
+    required: false
+    default: '512'
 
 
 outputs:

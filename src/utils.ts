@@ -25,7 +25,7 @@ export async function checkFileExists(filename: string): Promise<boolean> {
   try {
     await access(filename, fsConstants.F_OK);
     return true;
-  } catch (_e) {
+  } catch {
     //
   }
   return false;
@@ -200,7 +200,8 @@ export async function uploadArtifacts(
  * @returns {Promise<Coverage | null>}
  */
 export async function parseCoverage(
-  filename: string
+  filename: string,
+  trackLostLines = false
 ): Promise<Coverage | null> {
   if (!(await checkFileExists(filename))) {
     core.warning(`Unable to access ${filename} for parsing`);
@@ -216,10 +217,10 @@ export async function parseCoverage(
 
         if (instanceOfCobertura(xml)) {
           core.info(`Detected a Cobertura File at ${filename}`);
-          return await parseCobertura(xml);
+          return await parseCobertura(xml, trackLostLines);
         } else if (instanceOfClover(xml)) {
           core.info(`Detected a Clover File at ${filename}`);
-          return await parseClover(xml);
+          return await parseClover(xml, trackLostLines);
         }
       }
       break;
@@ -492,18 +493,18 @@ export function getInputs(): Inputs {
   const coverageDepth =
     coverageDepthRaw === ''
       ? undefined
-      : Math.max(1, Math.abs(parseInt(coverageDepthRaw, 10)) || 1);
+      : Math.max(1, Math.abs(Number.parseInt(coverageDepthRaw, 10)) || 1);
   const showCoverageByParentDir =
     core.getInput('show_coverage_by_parent_dir') === 'true';
   const overallCoverageFailThreshold = Math.abs(
-    parseInt(core.getInput('overall_coverage_fail_threshold') || '0')
+    Number.parseInt(core.getInput('overall_coverage_fail_threshold') || '0')
   );
   const fileCoverageErrorMin = Math.abs(
-    parseInt(core.getInput('file_coverage_error_min') || '50')
+    Number.parseInt(core.getInput('file_coverage_error_min') || '50')
   );
 
   const fileCoverageWarningMax = Math.abs(
-    parseInt(core.getInput('file_coverage_warning_max') || '75')
+    Number.parseInt(core.getInput('file_coverage_warning_max') || '75')
   );
 
   const negativeDifferenceThreshold =
@@ -512,10 +513,10 @@ export function getInputs(): Inputs {
     ) * -1;
 
   const failOnNegativeDifference =
-    core.getInput('fail_on_negative_difference') === 'true' ? true : false;
+    core.getInput('fail_on_negative_difference') === 'true';
 
   const onlyListChangedFiles =
-    core.getInput('only_list_changed_files') === 'true' ? true : false;
+    core.getInput('only_list_changed_files') === 'true';
 
   const negativeDifferenceBy =
     core.getInput('negative_difference_by') === 'overall'
@@ -526,7 +527,7 @@ export function getInputs(): Inputs {
   const retentionDays =
     retentionString === undefined
       ? undefined
-      : Math.abs(parseInt(retentionString));
+      : Math.abs(Number.parseInt(retentionString));
 
   const artifactName = core.getInput('artifact_name') || 'coverage-%name%';
   if (!artifactName.includes('%name%')) {
@@ -557,6 +558,28 @@ export function getInputs(): Inputs {
           .map((p) => p.trim())
           .filter(Boolean);
 
+  const trackLostLines = core.getInput('track_lost_lines') === 'true';
+
+  const searchStepsRaw = Number.parseInt(
+    core.getInput('lost_lines_merge_base_search_steps'),
+    10
+  );
+  const lostLinesMergeBaseSearchSteps =
+    !Number.isFinite(searchStepsRaw) || searchStepsRaw < 1
+      ? 10
+      : searchStepsRaw;
+
+  const maxDepthRaw = Number.parseInt(
+    core.getInput('lost_lines_merge_base_max_depth'),
+    10
+  );
+  const parsedMaxDepth =
+    !Number.isFinite(maxDepthRaw) || maxDepthRaw < 1 ? 512 : maxDepthRaw;
+  const lostLinesMergeBaseMaxDepth = Math.max(
+    lostLinesMergeBaseSearchSteps,
+    parsedMaxDepth
+  );
+
   return {
     token,
     filename,
@@ -578,7 +601,10 @@ export function getInputs(): Inputs {
     showCoverageByTopDir,
     coverageDepth,
     showCoverageByParentDir,
-    excludePaths
+    excludePaths,
+    trackLostLines,
+    lostLinesMergeBaseSearchSteps,
+    lostLinesMergeBaseMaxDepth
   };
 }
 
@@ -615,4 +641,20 @@ function inArray(needle: string, haystack: string[]): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Build a covered-lines map (relative path → flat sorted number[]) from a Coverage object.
+ * Only files that have `covered_lines` populated are included.
+ */
+export function buildCoveredLinesMap(
+  coverage: Coverage
+): Record<string, number[]> {
+  const result: Record<string, number[]> = {};
+  for (const file of Object.values(coverage.files)) {
+    if (file.covered_lines && file.covered_lines.length > 0) {
+      result[file.relative] = file.covered_lines;
+    }
+  }
+  return result;
 }

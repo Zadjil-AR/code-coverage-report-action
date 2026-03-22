@@ -1,5 +1,158 @@
 // Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
+exports[`parse clover file with no path attribute falls back to name 1`] = `
+{
+  "basePath": "src/nopath.ts",
+  "coverage": 66.67,
+  "files": {
+    "188dec7f5b5cbb125e8f7f8fab83d5f417e415582faf0c54cade8e9d6f911b20": {
+      "absolute": "src/nopath.ts",
+      "coverage": 66.67,
+      "covered_lines": [
+        1, 2,
+      ],
+      "lines_covered": 2,
+      "lines_valid": 3,
+      "relative": "src/nopath.ts",
+    },
+  },
+  "timestamp": 1715832361306,
+}
+`;
+
+exports[`parse clover with edge case lines skips invalid line numbers and missing count 1`] = `
+{
+  "basePath": "/project/edge.ts",
+  "coverage": 33.33,
+  "files": {
+    "c8581ed45f58629d3abbe0323c48c3990efdd10fb0a7eab929331c38314dd650": {
+      "absolute": "/project/edge.ts",
+      "coverage": 33.33,
+      "covered_lines": [
+        1,
+      ],
+      "lines_covered": 1,
+      "lines_valid": 3,
+      "relative": "/project/edge.ts",
+    },
+  },
+  "timestamp": 1715832361306,
+}
+`;
+
+exports[`parse clover with single line element and trackLostLines=true normalises to array 1`] = `
+{
+  "basePath": "/project/single.ts",
+  "coverage": 100,
+  "files": {
+    "f0aca69def3950bdd9ba1ad361b0227b3167c799668147b27d8956e358ec5c1f": {
+      "absolute": "/project/single.ts",
+      "coverage": 100,
+      "covered_lines": [
+        5,
+      ],
+      "lines_covered": 1,
+      "lines_valid": 1,
+      "relative": "/project/single.ts",
+    },
+  },
+  "timestamp": 1715832361306,
+}
+`;
+
+exports[`parse clover with trackLostLines=true captures covered_lines 1`] = `
+{
+  "basePath": "/usr/src/code-coverage-report-action/src",
+  "coverage": 50.51,
+  "files": {
+    "16e49737876bdcd7a88d16a1a4d38cc5c8048ea69c7152cc1b1c43a56db22fc4": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/clover/types/index.ts",
+      "coverage": 100,
+      "covered_lines": [
+        43, 44, 69, 70, 71, 74, 75, 76, 77,
+      ],
+      "lines_covered": 18,
+      "lines_valid": 18,
+      "relative": "reports/clover/types/index.ts",
+    },
+    "25804f0e27524e107e3d739dbbeadd8025fc3aaa2cc3ce3ca481569d20da1244": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/clover/parser/index.ts",
+      "coverage": 84.31,
+      "covered_lines": [
+        3, 10, 11, 13, 14, 15, 17, 21, 22, 23, 25, 27, 28, 43, 44, 45, 48, 50, 52, 62,
+        66, 87, 88, 89, 90, 91, 92, 94, 95, 98, 100,
+      ],
+      "lines_covered": 43,
+      "lines_valid": 51,
+      "relative": "reports/clover/parser/index.ts",
+    },
+    "2c577907984e426e2eb45b05a76679cb2ef45f2a36d0121f823290c32e5f97c4": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/clover/index.ts",
+      "coverage": 100,
+      "covered_lines": [
+        1, 2,
+      ],
+      "lines_covered": 3,
+      "lines_valid": 3,
+      "relative": "reports/clover/index.ts",
+    },
+    "4194a7efb6c90fc1c5477f9aa8ac1c439513c816a92ce5ec4b52bc9633cecba4": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/cobertura/types/index.ts",
+      "coverage": 100,
+      "covered_lines": [
+        62, 63, 64, 77, 78, 79, 80, 81,
+      ],
+      "lines_covered": 14,
+      "lines_valid": 14,
+      "relative": "reports/cobertura/types/index.ts",
+    },
+    "4db0f25752a35fb4c0f500272e98c9a9a786c50468f32173c77b5755d5d61b4a": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/cobertura/parser/index.ts",
+      "coverage": 13.33,
+      "covered_lines": [
+        2, 10,
+      ],
+      "lines_covered": 2,
+      "lines_valid": 15,
+      "relative": "reports/cobertura/parser/index.ts",
+    },
+    "564c860307257bfac9176f554a35aa858c350a59d75c0dcd0a5d63a480805bd0": {
+      "absolute": "/usr/src/code-coverage-report-action/src/main.ts",
+      "coverage": 0,
+      "covered_lines": [],
+      "lines_covered": 0,
+      "lines_valid": 153,
+      "relative": "main.ts",
+    },
+    "628976b76dd72ce208ab27d714c9761c0d61a2cceb5f4550f9f0e41b0f4ba944": {
+      "absolute": "/usr/src/code-coverage-report-action/src/reports/cobertura/index.ts",
+      "coverage": 66.67,
+      "covered_lines": [
+        1, 2,
+      ],
+      "lines_covered": 2,
+      "lines_valid": 3,
+      "relative": "reports/cobertura/index.ts",
+    },
+    "7583809507a13391057c3aee722e422d50d961a87e2a3dbf05ea492dc6465c94": {
+      "absolute": "/usr/src/code-coverage-report-action/src/utils.ts",
+      "coverage": 70.94,
+      "covered_lines": [
+        1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 14, 21, 22, 23, 24, 27, 35, 36, 37, 40,
+        42, 45, 46, 48, 63, 165, 194, 197, 198, 199, 202, 204, 207, 209, 212, 213, 214, 219, 222, 225,
+        226, 234, 235, 238, 239, 249, 254, 255, 257, 258, 259, 260, 261, 264, 265, 266, 267, 268, 269, 273,
+        283, 293, 299, 306, 308, 311, 323, 324, 325, 328, 329, 331, 332, 333, 336, 339, 344, 347, 351, 353,
+        355, 356, 360, 364, 369, 372, 375, 392, 397, 402, 410, 411, 412, 423, 424, 425, 427,
+      ],
+      "lines_covered": 166,
+      "lines_valid": 234,
+      "relative": "utils.ts",
+    },
+  },
+  "timestamp": 1715832361306,
+}
+`;
+
 exports[`parse cobertura file with empty classes 1`] = `
 {
   "basePath": "",
@@ -17,6 +170,7 @@ exports[`parse cobertura file with empty lines 1`] = `
     "4fab5baaca5c14d2de62d8d2fceef376ddddcc8e9509d86cfa5643f51b89ce3d": {
       "absolute": "src/main.ts",
       "coverage": 0,
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 0,
       "relative": "src/main.ts",
@@ -34,6 +188,7 @@ exports[`parse cobertura file with empty methods 1`] = `
     "4fab5baaca5c14d2de62d8d2fceef376ddddcc8e9509d86cfa5643f51b89ce3d": {
       "absolute": "src/main.ts",
       "coverage": 0,
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 0,
       "relative": "src/main.ts",
@@ -60,6 +215,7 @@ exports[`parse cobertura project with single file 1`] = `
     "83e0f134b069618626405250ccb3fd4adcc0fdfc7714b387d4aa4f30862f75a7": {
       "absolute": "/foo.php",
       "coverage": 0,
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 0,
       "relative": "/foo.php",
@@ -86,6 +242,7 @@ exports[`parse many sources cobertura file 1`] = `
     "047ca623186112f554f1361a31af7b766b2afbd159064c004bf45123690456fb": {
       "absolute": "/dio/lib/src/progress_stream/browser_progress_stream.dart",
       "coverage": 87.5,
+      "covered_lines": undefined,
       "lines_covered": 14,
       "lines_valid": 16,
       "relative": "dio/lib/src/progress_stream/browser_progress_stream.dart",
@@ -93,6 +250,7 @@ exports[`parse many sources cobertura file 1`] = `
     "0c6ad18173da236b264dd249ca7086db6b1e1b4b51cdfe40077268e3407c45ca": {
       "absolute": "/dio/lib/src/dio_mixin.dart",
       "coverage": 94.12,
+      "covered_lines": undefined,
       "lines_covered": 448,
       "lines_valid": 476,
       "relative": "dio/lib/src/dio_mixin.dart",
@@ -100,6 +258,7 @@ exports[`parse many sources cobertura file 1`] = `
     "14883a7ae9f5f2a78e7aa04f885b9071efaa546cd0274aa39808a3bcf5be0eb2": {
       "absolute": "/plugins/http2_adapter/lib/src/connection_manager_imp.dart",
       "coverage": 79.84,
+      "covered_lines": undefined,
       "lines_covered": 103,
       "lines_valid": 129,
       "relative": "plugins/http2_adapter/lib/src/connection_manager_imp.dart",
@@ -107,6 +266,7 @@ exports[`parse many sources cobertura file 1`] = `
     "19ed92a501e076e02b58f8470e2ec802b079d63e69ecc1c6549809033fa93915": {
       "absolute": "/dio/lib/src/interceptors/imply_content_type.dart",
       "coverage": 100,
+      "covered_lines": undefined,
       "lines_covered": 23,
       "lines_valid": 23,
       "relative": "dio/lib/src/interceptors/imply_content_type.dart",
@@ -114,6 +274,7 @@ exports[`parse many sources cobertura file 1`] = `
     "1bc936903366c430e1c09b039066a0a2cc61123216fa6525316bdaeb1ebfb470": {
       "absolute": "/dio/lib/src/transformer.dart",
       "coverage": 95,
+      "covered_lines": undefined,
       "lines_covered": 38,
       "lines_valid": 40,
       "relative": "dio/lib/src/transformer.dart",
@@ -121,6 +282,7 @@ exports[`parse many sources cobertura file 1`] = `
     "23beed8928f09196a04e4a994b43025e1dd4d4626743062507a0cc7af2f30050": {
       "absolute": "/dio/lib/src/utils.dart",
       "coverage": 89.31,
+      "covered_lines": undefined,
       "lines_covered": 117,
       "lines_valid": 131,
       "relative": "dio/lib/src/utils.dart",
@@ -128,6 +290,7 @@ exports[`parse many sources cobertura file 1`] = `
     "36e5849f5b7b10173ab2520c83ba8553e1ab380fe7d50d42ddb454766f0b2372": {
       "absolute": "/dio/lib/src/adapter.dart",
       "coverage": 96.67,
+      "covered_lines": undefined,
       "lines_covered": 29,
       "lines_valid": 30,
       "relative": "dio/lib/src/adapter.dart",
@@ -135,6 +298,7 @@ exports[`parse many sources cobertura file 1`] = `
     "38ef083699810a7e351573e0004d595497f4ad4e8dbe150fb56713caa1c87859": {
       "absolute": "/dio/lib/src/multipart_file/io_multipart_file.dart",
       "coverage": 85.71,
+      "covered_lines": undefined,
       "lines_covered": 12,
       "lines_valid": 14,
       "relative": "dio/lib/src/multipart_file/io_multipart_file.dart",
@@ -142,6 +306,7 @@ exports[`parse many sources cobertura file 1`] = `
     "3d72fdcc8fdb85f7e75f82acdcbf3cbadce77a6e353446ccd7c2b7799508f3f0": {
       "absolute": "/dio/lib/src/dio/dio_for_native.dart",
       "coverage": 91.3,
+      "covered_lines": undefined,
       "lines_covered": 63,
       "lines_valid": 69,
       "relative": "dio/lib/src/dio/dio_for_native.dart",
@@ -149,6 +314,7 @@ exports[`parse many sources cobertura file 1`] = `
     "42f1191f14a8444ed7b9466fd24d9a42c4222d1cc628b6dfa48db33f931a2a40": {
       "absolute": "/dio/lib/src/dio_exception.dart",
       "coverage": 65.35,
+      "covered_lines": undefined,
       "lines_covered": 83,
       "lines_valid": 127,
       "relative": "dio/lib/src/dio_exception.dart",
@@ -156,6 +322,7 @@ exports[`parse many sources cobertura file 1`] = `
     "481f5993a7795ed1ee31f808d11a579a48fd60d698e8ca13f85dcb3acff5d421": {
       "absolute": "/dio/lib/src/dio.dart",
       "coverage": 25,
+      "covered_lines": undefined,
       "lines_covered": 1,
       "lines_valid": 4,
       "relative": "dio/lib/src/dio.dart",
@@ -163,6 +330,7 @@ exports[`parse many sources cobertura file 1`] = `
     "541cdb8fb7046c948680968839906d9a3cc42dc00295af96ac22b8ce208a3364": {
       "absolute": "/dio/lib/src/multipart_file/browser_multipart_file.dart",
       "coverage": 20,
+      "covered_lines": undefined,
       "lines_covered": 1,
       "lines_valid": 5,
       "relative": "dio/lib/src/multipart_file/browser_multipart_file.dart",
@@ -170,6 +338,7 @@ exports[`parse many sources cobertura file 1`] = `
     "564bd06f55902376a964cb9b191fff482b158dc781fd9973cc6c9f1e7dfa234c": {
       "absolute": "/dio/lib/src/transformers/sync_transformer.dart",
       "coverage": 87.72,
+      "covered_lines": undefined,
       "lines_covered": 50,
       "lines_valid": 57,
       "relative": "dio/lib/src/transformers/sync_transformer.dart",
@@ -177,6 +346,7 @@ exports[`parse many sources cobertura file 1`] = `
     "5a9acdf2bac512a4da993283844d0f209fea62af98db725927357f609cf379e5": {
       "absolute": "/dio/lib/src/adapters/browser_adapter.dart",
       "coverage": 75,
+      "covered_lines": undefined,
       "lines_covered": 111,
       "lines_valid": 148,
       "relative": "dio/lib/src/adapters/browser_adapter.dart",
@@ -184,6 +354,7 @@ exports[`parse many sources cobertura file 1`] = `
     "5c02d69a080def64961e419dc56085a6c0c37a20f4920c3df03825568638348f": {
       "absolute": "/dio/lib/src/cancel_token.dart",
       "coverage": 91.3,
+      "covered_lines": undefined,
       "lines_covered": 21,
       "lines_valid": 23,
       "relative": "dio/lib/src/cancel_token.dart",
@@ -191,6 +362,7 @@ exports[`parse many sources cobertura file 1`] = `
     "600ff1af86377733993e06911053a318543338f01071f6521084d6aee67bfc8e": {
       "absolute": "/dio/lib/src/compute/compute_web.dart",
       "coverage": 0,
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 4,
       "relative": "dio/lib/src/compute/compute_web.dart",
@@ -198,6 +370,7 @@ exports[`parse many sources cobertura file 1`] = `
     "6a51f36d7f3103636a7a55e31fe9bd5deba595d8d220ef55d229c84a2fdf8daa": {
       "absolute": "/dio/lib/src/dio/dio_for_browser.dart",
       "coverage": 57.14,
+      "covered_lines": undefined,
       "lines_covered": 4,
       "lines_valid": 7,
       "relative": "dio/lib/src/dio/dio_for_browser.dart",
@@ -205,6 +378,7 @@ exports[`parse many sources cobertura file 1`] = `
     "6b4fbab3f519f98ba0e68fb1039f0069ba2f0fa144c8262ab369e8caf6618956": {
       "absolute": "/dio/lib/src/adapters/io_adapter.dart",
       "coverage": 65.12,
+      "covered_lines": undefined,
       "lines_covered": 112,
       "lines_valid": 172,
       "relative": "dio/lib/src/adapters/io_adapter.dart",
@@ -212,6 +386,7 @@ exports[`parse many sources cobertura file 1`] = `
     "6d76f2b15fffdcddc665cd44c6ce46c1b5ec262589db204491c08900c6f65d74": {
       "absolute": "/dio/lib/src/parameter.dart",
       "coverage": 10,
+      "covered_lines": undefined,
       "lines_covered": 2,
       "lines_valid": 20,
       "relative": "dio/lib/src/parameter.dart",
@@ -219,6 +394,7 @@ exports[`parse many sources cobertura file 1`] = `
     "72ad978e4435692d5fa9db4ca4ba22f30bbd21e84a0cb5871364b2cd1d83c444": {
       "absolute": "/plugins/http2_adapter/lib/src/connection_manager.dart",
       "coverage": 100,
+      "covered_lines": undefined,
       "lines_covered": 4,
       "lines_valid": 4,
       "relative": "plugins/http2_adapter/lib/src/connection_manager.dart",
@@ -226,6 +402,7 @@ exports[`parse many sources cobertura file 1`] = `
     "75721fcf29fb9a5e9ed2c1c29d142fbc6ae140442a972e3ca004701fc42f6f55": {
       "absolute": "/dio/lib/src/response/response_stream_handler.dart",
       "coverage": 99.06,
+      "covered_lines": undefined,
       "lines_covered": 105,
       "lines_valid": 106,
       "relative": "dio/lib/src/response/response_stream_handler.dart",
@@ -233,6 +410,7 @@ exports[`parse many sources cobertura file 1`] = `
     "77cfbfe91383ace40cba72c4f98274c52526e91278bfbbe6b558db359fd2a917": {
       "absolute": "/dio/lib/src/transformers/background_transformer.dart",
       "coverage": 81.82,
+      "covered_lines": undefined,
       "lines_covered": 9,
       "lines_valid": 11,
       "relative": "dio/lib/src/transformers/background_transformer.dart",
@@ -240,6 +418,7 @@ exports[`parse many sources cobertura file 1`] = `
     "7bfe2d3a657442412d5b511988b66de6da6a6a8ffacd41fa42c0e7bc3bf9ae28": {
       "absolute": "/dio/lib/src/headers.dart",
       "coverage": 91.01,
+      "covered_lines": undefined,
       "lines_covered": 81,
       "lines_valid": 89,
       "relative": "dio/lib/src/headers.dart",
@@ -247,6 +426,7 @@ exports[`parse many sources cobertura file 1`] = `
     "823e46b07c6e8b66665bb99d7df810346c201c2849ec57a543ebdff70865c2b0": {
       "absolute": "/dio/lib/src/redirect_record.dart",
       "coverage": 22.22,
+      "covered_lines": undefined,
       "lines_covered": 2,
       "lines_valid": 9,
       "relative": "dio/lib/src/redirect_record.dart",
@@ -254,6 +434,7 @@ exports[`parse many sources cobertura file 1`] = `
     "88b482500f062794ba23cf64c32c15eb4fdc2bf09bbe6408278db49aa2115cb0": {
       "absolute": "/dio/lib/src/form_data.dart",
       "coverage": 85.63,
+      "covered_lines": undefined,
       "lines_covered": 149,
       "lines_valid": 174,
       "relative": "dio/lib/src/form_data.dart",
@@ -261,6 +442,7 @@ exports[`parse many sources cobertura file 1`] = `
     "9368f9a0d918c91091418412b3696df8b555783a98d70c8ef89aafefa26bee5f": {
       "absolute": "/dio/lib/src/interceptor.dart",
       "coverage": 97.74,
+      "covered_lines": undefined,
       "lines_covered": 260,
       "lines_valid": 266,
       "relative": "dio/lib/src/interceptor.dart",
@@ -268,6 +450,7 @@ exports[`parse many sources cobertura file 1`] = `
     "9b8e81419267c84fd0c806645e7194d39487ac94b019bbf33d687c8f344b2f0c": {
       "absolute": "/dio/lib/src/interceptors/log.dart",
       "coverage": 0,
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 56,
       "relative": "dio/lib/src/interceptors/log.dart",
@@ -275,6 +458,7 @@ exports[`parse many sources cobertura file 1`] = `
     "9c973028fea3e83b8af2f6483ee2b029e47b4338835bf9c833fb101f159d7f26": {
       "absolute": "/plugins/cookie_manager/lib/src/cookie_mgr.dart",
       "coverage": 76.67,
+      "covered_lines": undefined,
       "lines_covered": 46,
       "lines_valid": 60,
       "relative": "plugins/cookie_manager/lib/src/cookie_mgr.dart",
@@ -282,6 +466,7 @@ exports[`parse many sources cobertura file 1`] = `
     "9e16d901ce5a97ec166c02fd6b3c66865517e5ed2d4f98896121000c4b51fad5": {
       "absolute": "/dio/lib/src/compute/compute_io.dart",
       "coverage": 0,
+      "covered_lines": undefined,
       "lines_covered": 0,
       "lines_valid": 53,
       "relative": "dio/lib/src/compute/compute_io.dart",
@@ -289,6 +474,7 @@ exports[`parse many sources cobertura file 1`] = `
     "b04b3368f4cc8b81b57022fc72620989d0e5941136b2fa5411085468ec6a1ccf": {
       "absolute": "/plugins/http2_adapter/lib/src/http2_adapter.dart",
       "coverage": 71.72,
+      "covered_lines": undefined,
       "lines_covered": 104,
       "lines_valid": 145,
       "relative": "plugins/http2_adapter/lib/src/http2_adapter.dart",
@@ -296,6 +482,7 @@ exports[`parse many sources cobertura file 1`] = `
     "bed0ea39c9af0b71c65fb305e8c68236e0292cad32dd6693fe8092aefcdfb6a7": {
       "absolute": "/dio/lib/src/options.dart",
       "coverage": 92.93,
+      "covered_lines": undefined,
       "lines_covered": 289,
       "lines_valid": 311,
       "relative": "dio/lib/src/options.dart",
@@ -303,6 +490,7 @@ exports[`parse many sources cobertura file 1`] = `
     "ddbf97444073e26a3250d434e7cfa9dc48025582df20fd874ccc4a64218e9310": {
       "absolute": "/dio/lib/src/multipart_file.dart",
       "coverage": 53.23,
+      "covered_lines": undefined,
       "lines_covered": 33,
       "lines_valid": 62,
       "relative": "dio/lib/src/multipart_file.dart",
@@ -310,6 +498,7 @@ exports[`parse many sources cobertura file 1`] = `
     "e3a57d31614a71527998b4e2ba5982de926ac6c65fe373dafd992eda9414d82a": {
       "absolute": "/dio/lib/src/progress_stream/io_progress_stream.dart",
       "coverage": 78.95,
+      "covered_lines": undefined,
       "lines_covered": 15,
       "lines_valid": 19,
       "relative": "dio/lib/src/progress_stream/io_progress_stream.dart",
@@ -317,6 +506,7 @@ exports[`parse many sources cobertura file 1`] = `
     "e669e973c3e9889b001c40186b78936ad023f8137420c627e0aee9da9fee0fd1": {
       "absolute": "/plugins/compatibility_layer/lib/src/conversion_layer_adapter.dart",
       "coverage": 81.16,
+      "covered_lines": undefined,
       "lines_covered": 56,
       "lines_valid": 69,
       "relative": "plugins/compatibility_layer/lib/src/conversion_layer_adapter.dart",
@@ -324,6 +514,7 @@ exports[`parse many sources cobertura file 1`] = `
     "f651b86290b3eb324dfe2e820609f237ae671baa95840cfbdbfb8c51581c552a": {
       "absolute": "/plugins/native_dio_adapter/lib/src/conversion_layer_adapter.dart",
       "coverage": 92.5,
+      "covered_lines": undefined,
       "lines_covered": 37,
       "lines_valid": 40,
       "relative": "plugins/native_dio_adapter/lib/src/conversion_layer_adapter.dart",
@@ -331,6 +522,7 @@ exports[`parse many sources cobertura file 1`] = `
     "f6ac8f3cb3e35a127a238c408bfe1e1b2759f57a9f1944ed0b6bdb9b1c3f3bd7": {
       "absolute": "/dio/lib/src/response.dart",
       "coverage": 52.94,
+      "covered_lines": undefined,
       "lines_covered": 9,
       "lines_valid": 17,
       "relative": "dio/lib/src/response.dart",

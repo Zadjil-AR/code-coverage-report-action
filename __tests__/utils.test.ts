@@ -14,8 +14,10 @@ import {
   filterCoverageByExcludePaths,
   filterCoverageZeroLineFiles,
   parseXML,
-  parseCoverage
+  parseCoverage,
+  buildCoveredLinesMap
 } from '../src/utils'
+import { extractCloverCoveredLines } from '../src/reports/clover/parser'
 import {
   expect,
   test,
@@ -187,6 +189,9 @@ test('getInputs', () => {
     showCoverageByParentDir: false,
     excludePaths: [],
     onlyListChangedFiles: false,
+    trackLostLines: false,
+    lostLinesMergeBaseSearchSteps: 10,
+    lostLinesMergeBaseMaxDepth: 512,
     //This is a cheat
     withBaseCoverageTemplate: f.withBaseCoverageTemplate,
     withoutBaseCoverageTemplate: f.withoutBaseCoverageTemplate
@@ -326,6 +331,7 @@ test('parse clover into file format', async () => {
   for (const file of Object.values(ret?.files ?? {})) {
     expect(file).toHaveProperty('lines_covered')
     expect(file).toHaveProperty('lines_valid')
+    expect(file).toHaveProperty('covered_lines')
   }
 })
 
@@ -333,7 +339,10 @@ test('parse cobertura file format', async () => {
   const ret = await parseCoverage(__dirname + '/fixtures/cobertura.xml')
 
   const loadedFixture = await loadJSONFixture('cobertura-parsed.json')
-  expect(loadedFixture).toEqual(ret)
+  expect(ret).toMatchObject(loadedFixture)
+  for (const file of Object.values(ret?.files ?? {})) {
+    expect(file).toHaveProperty('covered_lines')
+  }
 })
 
 test('parse empty cobertura file', async () => {
@@ -371,4 +380,269 @@ test('parse many sources cobertura file', async () => {
     __dirname + '/fixtures/cobertura-many-sources.xml'
   )
   expect(ret).toMatchSnapshot()
+})
+
+test('parse clover with trackLostLines=true captures covered_lines', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover.xml', true)
+  expect(ret).not.toBeNull()
+  for (const file of Object.values(ret?.files ?? {})) {
+    expect(file).toHaveProperty('covered_lines')
+    expect(Array.isArray(file.covered_lines)).toBe(true)
+  }
+  expect(ret).toMatchSnapshot()
+})
+
+test('parse clover with package that has no files skips that package', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-package-no-files.xml', true)
+  expect(ret).not.toBeNull()
+  // Only the package with files contributes — the empty package is skipped
+  expect(Object.keys(ret?.files ?? {})).toHaveLength(1)
+  const file = Object.values(ret?.files ?? {})[0]
+  expect(file.covered_lines).toEqual([1, 2, 4])
+})
+
+test('parse clover file with no line elements and trackLostLines=true returns empty covered_lines', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-file-no-lines.xml', true)
+  expect(ret).not.toBeNull()
+  const file = Object.values(ret?.files ?? {})[0]
+  expect(file.covered_lines).toEqual([])
+})
+
+test('parse clover with single line element and trackLostLines=true normalises to array', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-single-line.xml', true)
+  expect(ret).not.toBeNull()
+  const file = Object.values(ret?.files ?? {})[0]
+  // XML parser returns a single object (not an array) for one <line> — must be normalised
+  expect(file.covered_lines).toEqual([5])
+  expect(ret).toMatchSnapshot()
+})
+
+test('parse clover file with no path attribute falls back to name', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-no-path.xml', true)
+  expect(ret).not.toBeNull()
+  expect(Object.keys(ret?.files ?? {})).toHaveLength(1)
+  const file = Object.values(ret?.files ?? {})[0]
+  // Relative path should be set from the name attribute since path is absent
+  expect(file.relative).toBe('src/nopath.ts')
+  expect(file.covered_lines).toEqual([1, 2])
+  expect(ret).toMatchSnapshot()
+})
+
+test('parse clover with edge case lines skips invalid line numbers and missing count', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/clover-edge-cases.xml', true)
+  expect(ret).not.toBeNull()
+  const file = Object.values(ret?.files ?? {})[0]
+  // Only line 1 is valid (count > 0 and num > 0); num=0 with count>0 and missing count are excluded
+  expect(file.covered_lines).toEqual([1])
+  expect(ret).toMatchSnapshot()
+})
+
+test('extractCloverCoveredLines returns empty array for empty array input', () => {
+  // Covers the arr.length === 0 branch — this path is defensive and cannot be reached
+  // through XML parsing (XML parser returns undefined for missing elements), so it is
+  // tested directly via the exported function.
+  expect(extractCloverCoveredLines([])).toEqual([])
+})
+
+test('extractCloverCoveredLines excludes lines with missing num attribute', () => {
+  // Covers the @_num ?? '0' fallback branch: when @_num is absent num defaults to 0
+  // which fails the num > 0 guard and is therefore excluded from covered_lines.
+  const result = extractCloverCoveredLines([
+    { '@_count': '5' } as any,       // no num → num = 0 → excluded
+    { '@_count': '1', '@_num': '7' } as any  // has num → included
+  ])
+  expect(result).toEqual([7])
+})
+
+test('parse cobertura with multiple packages sharing same file merges entries', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/cobertura-two-packages-same-file.xml')
+  expect(ret).not.toBeNull()
+  // Both packages map to src/same.ts — there should be exactly one merged entry
+  expect(Object.keys(ret?.files ?? {})).toHaveLength(1)
+  const file = Object.values(ret?.files ?? {})[0]
+  expect(file.lines_covered).toBe(2)
+  expect(file.lines_valid).toBe(4)
+})
+
+test('parse cobertura with multiple packages sharing same file and trackLostLines=true merges covered_lines', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/cobertura-two-packages-same-file.xml', true)
+  expect(ret).not.toBeNull()
+  const file = Object.values(ret?.files ?? {})[0]
+  // lines 1 and 3 are covered across the two packages
+  expect(file.covered_lines).toEqual([1, 3])
+})
+
+test('parse cobertura with two classes sharing same filename in one package and trackLostLines=true merges covered_lines', async () => {
+  const ret = await parseCoverage(__dirname + '/fixtures/cobertura-two-classes-same-file.xml', true)
+  expect(ret).not.toBeNull()
+  expect(Object.keys(ret?.files ?? {})).toHaveLength(1)
+  const file = Object.values(ret?.files ?? {})[0]
+  expect(file.lines_covered).toBe(2)
+  expect(file.lines_valid).toBe(4)
+  // lines 1 and 3 are covered across the two classes
+  expect(file.covered_lines).toEqual([1, 3])
+})
+
+// ---------------------------------------------------------------------------
+// buildCoveredLinesMap
+// ---------------------------------------------------------------------------
+
+test('buildCoveredLinesMap returns map of relative paths to covered lines', async () => {
+  const coverage = await parseCoverage(__dirname + '/fixtures/cobertura.xml', true)
+  const map = buildCoveredLinesMap(coverage!)
+  // Should have entries for files that have covered lines
+  expect(Object.keys(map).length).toBeGreaterThan(0)
+  for (const lines of Object.values(map)) {
+    expect(Array.isArray(lines)).toBe(true)
+    expect(lines.length).toBeGreaterThan(0)
+  }
+})
+
+test('buildCoveredLinesMap returns empty object when no covered lines', () => {
+  const coverage = {
+    files: {
+      abc: {
+        relative: 'src/a.ts',
+        absolute: '/src/a.ts',
+        coverage: 0
+        // no covered_lines
+      }
+    },
+    coverage: 0,
+    timestamp: 0,
+    basePath: ''
+  }
+  const map = buildCoveredLinesMap(coverage)
+  expect(Object.keys(map)).toHaveLength(0)
+})
+
+test('getInputs returns trackLostLines true when INPUT_TRACK_LOST_LINES is true', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_TRACK_LOST_LINES = 'true'
+
+  const f = getInputs()
+  expect(f.trackLostLines).toBe(true)
+
+  delete process.env.INPUT_TRACK_LOST_LINES
+})
+
+test('getInputs returns custom lostLinesMergeBaseSearchSteps and lostLinesMergeBaseMaxDepth', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = '20'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = '256'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(20)
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(256)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
+})
+
+test('getInputs clamps lostLinesMergeBaseMaxDepth to at least lostLinesMergeBaseSearchSteps', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = '50'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = '10'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBeGreaterThanOrEqual(f.lostLinesMergeBaseSearchSteps)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
+})
+
+test('getInputs uses default lostLinesMergeBaseSearchSteps (10) when not supplied', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(10)
+})
+
+test('getInputs uses default lostLinesMergeBaseSearchSteps (10) when supplied value is not a number', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = 'notanumber'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(10)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+})
+
+test('getInputs uses default lostLinesMergeBaseSearchSteps (10) when supplied value is less than 1', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = '0'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(10)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+})
+
+test('getInputs uses default lostLinesMergeBaseSearchSteps (10) when supplied value is negative', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS = '-5'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseSearchSteps).toBe(10)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_SEARCH_STEPS
+})
+
+test('getInputs uses default lostLinesMergeBaseMaxDepth (512) when not supplied', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(512)
+})
+
+test('getInputs uses default lostLinesMergeBaseMaxDepth (512) when supplied value is not a number', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = 'notanumber'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(512)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
+})
+
+test('getInputs uses default lostLinesMergeBaseMaxDepth (512) when supplied value is less than 1', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = '0'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(512)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
+})
+
+test('getInputs uses default lostLinesMergeBaseMaxDepth (512) when supplied value is negative', () => {
+  process.env.INPUT_GITHUB_TOKEN = 'token'
+  process.env.INPUT_FILENAME = 'filename.xml'
+  process.env.INPUT_ARTIFACT_NAME = 'coverage-%name%'
+  process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH = '-100'
+
+  const f = getInputs()
+  expect(f.lostLinesMergeBaseMaxDepth).toBe(512)
+
+  delete process.env.INPUT_LOST_LINES_MERGE_BASE_MAX_DEPTH
 })

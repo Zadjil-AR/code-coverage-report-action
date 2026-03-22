@@ -11,6 +11,44 @@ export interface CoverageFile {
   coverage: number;
   lines_covered?: number;
   lines_valid?: number;
+  covered_lines?: number[];
+}
+
+export interface LineRange {
+  start: number;
+  end: number;
+}
+
+export interface FileLostLines {
+  file: string;
+  /** Lost line ranges in base (original) file — for artifact storage */
+  lostRanges: LineRange[];
+  /** Lost line ranges in head (current) file — for display */
+  newLostRanges: LineRange[];
+  baseCoveredCount: number;
+  lostCount: number;
+  lostPercentage: number;
+}
+
+/** A single range entry used in the template preview (first 5 ranges). */
+export interface LostRangePreview {
+  file: string;
+  start: number;
+  end: number;
+}
+
+export interface LostLinesReport {
+  files: FileLostLines[];
+  overallBaseCoveredCount: number;
+  overallLostCount: number;
+  overallLostPercentage: number;
+  /** First 5 lost-line ranges across all files (head line numbers), for template rendering. */
+  previewRanges: LostRangePreview[];
+  /**
+   * Surviving base covered line count for every file (keyed by head path).
+   * Includes files with 0 lost lines so directory aggregations use the full denominator.
+   */
+  baseCoveredCountByFile: Record<string, number>;
 }
 
 export interface Inputs {
@@ -35,6 +73,9 @@ export interface Inputs {
   coverageDepth: number | undefined;
   showCoverageByParentDir: boolean;
   excludePaths: string[];
+  trackLostLines: boolean;
+  lostLinesMergeBaseSearchSteps: number;
+  lostLinesMergeBaseMaxDepth: number;
 }
 
 export interface Files {
@@ -48,6 +89,7 @@ export interface HandlebarContextCoverage {
   difference?: string;
   /** Plain percentage for summary line only (no emoji), e.g. "0%" or "-1.51%" */
   difference_plain?: string;
+  lost_coverage?: string;
 }
 
 export interface HandlebarContext {
@@ -60,4 +102,5 @@ export interface HandlebarContext {
   overall_coverage: HandlebarContextCoverage;
   coverage_by_top_dir?: HandlebarContextCoverage[];
   inputs: Inputs;
+  lost_lines_report?: LostLinesReport;
 }

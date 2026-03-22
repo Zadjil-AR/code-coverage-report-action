@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1715832361306" clover="3.2.0">
+  <project timestamp="1715832361306" name="All files">
+    <metrics statements="3" coveredstatements="1" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0" elements="3" coveredelements="1" complexity="0" loc="3" ncloc="3" packages="0" files="1" classes="1"/>
+    <file name="edge.ts" path="/project/edge.ts">
+      <metrics statements="3" coveredstatements="1" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+      <!-- A normal covered line -->
+      <line num="1" count="1" type="stmt"/>
+      <!-- Line with count > 0 but num = 0 (invalid line number — should not be included in covered_lines) -->
+      <line num="0" count="2" type="stmt"/>
+      <!-- Line without a count attribute (should default to 0 via ??) -->
+      <line num="3" type="stmt"/>
+    </file>
+  </project>
+</coverage>
