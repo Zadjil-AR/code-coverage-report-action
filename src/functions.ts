@@ -397,7 +397,9 @@ function buildCoverageRows(
           difference: colorizePercentageByThreshold(differencePercentage),
           lost_coverage:
             lostEntry && lostEntry.lostCount > 0
-              ? formatLostCoverage(lostEntry.lostCount, lostEntry.lostPercentage)
+              ? formatLostCoverage(lostEntry.lostCount, 
+                                   lostEntry.lostPercentage
+                                  )
               : undefined
         };
       })
