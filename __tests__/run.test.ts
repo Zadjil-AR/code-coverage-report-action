@@ -337,6 +337,7 @@ test('run: exception from downloadArtifacts calls setFailed', async () => {
 test('run: pull_request with track_lost_lines=true calls lost lines analysis', async () => {
   process.env.GITHUB_EVENT_NAME = 'pull_request'
   process.env.GITHUB_BASE_REF = 'main'
+  process.env.GITHUB_HEAD_REF = 'feature/my-branch'
   process.env.INPUT_TRACK_LOST_LINES = 'true'
 
   mockDownloadArtifacts.mockResolvedValue('/tmp/test-artifacts')
@@ -349,9 +350,10 @@ test('run: pull_request with track_lost_lines=true calls lost lines analysis', a
   await run()
 
   expect(mockBuildCoveredLinesMap).toHaveBeenCalled()
-  expect(mockGetGitDiff).toHaveBeenCalledWith('main', '', 10, 512)
+  expect(mockGetGitDiff).toHaveBeenCalledWith('main', 'feature/my-branch', 10, 512)
   expect(mockComputeLostLinesReport).toHaveBeenCalled()
   delete process.env.INPUT_TRACK_LOST_LINES
+  delete process.env.GITHUB_HEAD_REF
 })
 
 test('run: pull_request with track_lost_lines=true but no covered lines warns and skips', async () => {
