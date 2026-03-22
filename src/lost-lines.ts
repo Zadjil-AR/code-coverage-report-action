@@ -250,7 +250,7 @@ export async function fetchRefUntilMergeBase(
     isFirst = false;
     depth *= 2;
   }
-  core.debug(
+  core.info(
     `Reached max fetch depth (${maxDepth}) without finding merge base for ${baseRef}...${headRef}.`
   );
 }
